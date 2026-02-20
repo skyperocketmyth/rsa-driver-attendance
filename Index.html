@@ -2205,6 +2205,17 @@ document.addEventListener('DOMContentLoaded', function() {
       if (splash.parentNode) splash.parentNode.removeChild(splash);
     }, 700);
   }, 1500);
+
+  // Register service worker so Chrome on Android offers "Install App"
+  // (standalone mode) instead of a browser shortcut.
+  // The SW is served by our own doGet() at ?sw=1 — same origin as the page.
+  if ('serviceWorker' in navigator && APP_DEPLOYMENT_URL) {
+    navigator.serviceWorker.register(APP_DEPLOYMENT_URL + '?sw=1')
+      .catch(function(err) {
+        // SW registration failure is non-critical — app works fine without it.
+        console.warn('Service Worker registration failed:', err);
+      });
+  }
 });
 </script>
 

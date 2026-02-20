@@ -62,6 +62,13 @@ function doGet(e) {
     return buildPwaManifest_();
   }
 
+  // Serve the service worker JS when ?sw=1 is requested.
+  // This is required for Chrome on Android to offer "Install App" (standalone mode)
+  // instead of just "Add to Home Screen" (opens in browser).
+  if (param.sw === '1') {
+    return buildServiceWorker_();
+  }
+
   var view = param.view || 'driver';
   var template = HtmlService.createTemplateFromFile('Index');
 
@@ -94,6 +101,55 @@ function doGet(e) {
 // PWA SUPPORT
 // =============================================================================
 
+function buildServiceWorker_() {
+  // Minimal service worker — install/activate only.
+  // No caching: GAS requires a live network for every request anyway.
+  // Its sole purpose is to satisfy Chrome's PWA installability check so
+  // Android users get "Install App" (standalone WebAPK) instead of a
+  // browser shortcut.
+  var js = [
+    '// RSA Driver Attendance — Service Worker',
+    'self.addEventListener("install", function(e) {',
+    '  e.waitUntil(self.skipWaiting());',
+    '});',
+    'self.addEventListener("activate", function(e) {',
+    '  e.waitUntil(clients.claim());',
+    '});',
+    '// Empty fetch handler satisfies Chrome PWA install criteria.',
+    '// All network requests fall through to the browser default.',
+    'self.addEventListener("fetch", function(e) {});'
+  ].join('\n');
+  return ContentService.createTextOutput(js).setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+// Returns a public Google Drive thumbnail URL for the app icon.
+// Creates the SVG file in Drive once, then caches the thumbnail URL in
+// Script Properties so subsequent manifest requests are instant.
+// Uses the /thumbnail endpoint (returns a JPEG from Google CDN) which is
+// more reliable than uc?export=view for SVG files — Chrome requires a
+// decodable image with a proper MIME type for PWA manifest icons.
+function getOrCreateIconUrl_() {
+  try {
+    var props  = PropertiesService.getScriptProperties();
+    // Use a versioned key so changing the icon URL format forces regeneration.
+    var cached = props.getProperty('PWA_ICON_URL_V2');
+    if (cached) return cached;
+
+    var svgBlob = Utilities.newBlob(buildIconSvg_(), 'image/svg+xml', 'rsa-app-icon.svg');
+    var folder  = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+    var file    = folder.createFile(svgBlob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // thumbnail endpoint: Drive rasterises the SVG to a JPEG served from
+    // Google's CDN — reliable MIME type, no auth required for public files.
+    var url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w512';
+    props.setProperty('PWA_ICON_URL_V2', url);
+    return url;
+  } catch (err) {
+    // Non-fatal: manifest will have no icons if Drive is unavailable.
+    return '';
+  }
+}
+
 function buildIconSvg_() {
   // RSA Transport icon: dark-blue rounded square + white delivery truck (Material local_shipping)
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">' +
@@ -114,6 +170,16 @@ function buildPwaManifest_() {
   var deployUrl = '';
   try { deployUrl = ScriptApp.getService().getUrl(); } catch(e) {}
 
+  // Use a real Drive-hosted URL for the icon so Chrome can load it properly.
+  // Data URIs are not accepted as PWA manifest icons by Chrome.
+  var iconUrl = getOrCreateIconUrl_();
+  // No 'type' declared — Chrome auto-detects from the Content-Type the
+  // Drive CDN returns (JPEG). Declaring the wrong type would cause rejection.
+  var icons = iconUrl ? [
+    { src: iconUrl, sizes: '192x192', purpose: 'any' },
+    { src: iconUrl, sizes: '512x512', purpose: 'maskable' }
+  ] : [];
+
   var manifest = {
     name:             'RSA Driver Attendance',
     short_name:       'RSA Attend',
@@ -123,10 +189,7 @@ function buildPwaManifest_() {
     orientation:      'portrait-primary',
     theme_color:      '#0D47A1',
     background_color: '#0D47A1',
-    icons: [
-      { src: buildIconDataUri_(), sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-      { src: buildIconDataUri_(), sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
-    ]
+    icons:            icons
   };
 
   return ContentService
