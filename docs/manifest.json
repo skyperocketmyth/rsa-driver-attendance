@@ -2,21 +2,21 @@
   "name": "RSA Driver Attendance",
   "short_name": "RSA Attend",
   "description": "Driver shift tracking and attendance management for RSA Transport",
-  "start_url": "https://skyperocketmyth.github.io/rsa-driver-attendance/pwa/",
-  "scope": "https://skyperocketmyth.github.io/rsa-driver-attendance/pwa/",
+  "start_url": "https://skyperocketmyth.github.io/rsa-driver-attendance/",
+  "scope": "https://skyperocketmyth.github.io/rsa-driver-attendance/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0D47A1",
   "theme_color": "#0D47A1",
   "icons": [
     {
-      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/pwa/icon.svg",
+      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/icon.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/pwa/icon.svg",
+      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
@@ -24,7 +24,7 @@
   ],
   "screenshots": [
     {
-      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/pwa/icon.svg",
+      "src": "https://skyperocketmyth.github.io/rsa-driver-attendance/icon.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "form_factor": "narrow"

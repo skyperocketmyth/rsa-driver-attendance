@@ -4,10 +4,10 @@
 
 var CACHE = 'rsa-attend-v1';
 var SHELL = [
-  '/rsa-driver-attendance/pwa/',
-  '/rsa-driver-attendance/pwa/index.html',
-  '/rsa-driver-attendance/pwa/manifest.json',
-  '/rsa-driver-attendance/pwa/icon.svg'
+  '/rsa-driver-attendance/',
+  '/rsa-driver-attendance/index.html',
+  '/rsa-driver-attendance/manifest.json',
+  '/rsa-driver-attendance/icon.svg'
 ];
 
 self.addEventListener('install', function(e) {
