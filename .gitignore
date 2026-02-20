@@ -1,0 +1,19 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# clasp credentials (never commit)
+.clasprc.json
+
+# Environment / secrets
+.env
+*.env.local
+
+# Node (if ever added)
+node_modules/

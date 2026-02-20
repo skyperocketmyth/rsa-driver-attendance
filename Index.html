@@ -1,0 +1,2212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Driver Attendance</title>
+  <!-- PWA / installable app support -->
+  <meta name="theme-color" content="#0D47A1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="RSA Attend">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="<?!= iconDataUri ?>">
+  <link id="pwa-manifest" rel="manifest">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #F0F4F8;
+      color: #212121;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .hidden { display: none !important; }
+
+    /* ===== CSS VARIABLES ===== */
+    :root {
+      --primary:       #1565C0;
+      --primary-light: #1976D2;
+      --primary-dark:  #0D47A1;
+      --primary-pale:  #E3F2FD;
+      --success:       #2E7D32;
+      --success-light: #E8F5E9;
+      --error:         #C62828;
+      --error-light:   #FFEBEE;
+      --warning:       #E65100;
+      --warning-light: #FFF3E0;
+      --card:          #FFFFFF;
+      --border:        #E0E0E0;
+      --text-secondary:#616161;
+      --shadow:        0 2px 10px rgba(0,0,0,0.08);
+      --shadow-md:     0 4px 20px rgba(0,0,0,0.12);
+      --radius:        12px;
+      --radius-sm:     8px;
+    }
+
+    /* ===== LAYOUT ===== */
+    .screen { min-height: 100vh; padding-bottom: 24px; }
+    .container { max-width: 480px; margin: 0 auto; padding: 0 16px; }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    /* ===== APP HEADER ===== */
+    .app-header {
+      background: var(--primary-dark);
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-md);
+    }
+    .app-header h1 { font-size: 18px; font-weight: 500; flex: 1; }
+    .app-header .material-icons { font-size: 24px; }
+    .btn-icon {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      border-radius: 50%;
+      min-height: 0;
+    }
+    .btn-icon:active { background: rgba(255,255,255,0.15); }
+
+    /* ===== HOME SCREEN ===== */
+    #screen-home .app-header { background: var(--primary-dark); }
+    .home-welcome {
+      text-align: center;
+      padding: 32px 16px 16px;
+      color: white;
+      background: linear-gradient(160deg, var(--primary-dark) 0%, var(--primary) 100%);
+    }
+    .home-welcome .material-icons { font-size: 64px; opacity: 0.9; }
+    .home-welcome h2 { font-size: 22px; margin-top: 8px; font-weight: 500; }
+    .home-welcome p { font-size: 14px; opacity: 0.8; margin-top: 4px; }
+    .home-cards { padding: 24px 16px; display: grid; gap: 16px; }
+    .home-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      transition: transform 0.15s, box-shadow 0.15s;
+      border-left: 4px solid var(--primary);
+      text-decoration: none;
+      color: inherit;
+    }
+    .home-card:active { transform: scale(0.98); box-shadow: var(--shadow-md); }
+    .home-card .card-icon {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .home-card.start .card-icon { background: var(--primary-pale); color: var(--primary); }
+    .home-card.end .card-icon   { background: var(--success-light); color: var(--success); }
+    .home-card.end   { border-left-color: var(--success); }
+    .home-card .card-icon .material-icons { font-size: 28px; }
+    .home-card h3 { font-size: 17px; font-weight: 500; margin-bottom: 2px; }
+    .home-card p  { font-size: 13px; color: var(--text-secondary); }
+
+    /* ===== SCREEN HEADER ===== */
+    .screen-header {
+      background: var(--primary-dark);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .screen-header h2 { font-size: 17px; font-weight: 500; flex: 1; }
+    .screen-header .btn-icon { color: white; }
+
+    /* ===== STEP INDICATOR ===== */
+    .step-bar {
+      background: var(--primary);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255,255,255,0.6);
+      font-size: 13px;
+    }
+    .step-item.active { color: white; font-weight: 500; }
+    .step-item.done   { color: rgba(255,255,255,0.8); }
+    .step-dot {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: white;
+      flex-shrink: 0;
+    }
+    .step-item.active .step-dot { background: white; color: var(--primary); }
+    .step-item.done .step-dot   { background: rgba(255,255,255,0.4); }
+    .step-connector { width: 24px; height: 2px; background: rgba(255,255,255,0.3); }
+
+    /* ===== FORM ELEMENTS ===== */
+    .field-group { margin-bottom: 18px; }
+    .field-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .field-group .required { color: var(--error); }
+    input[type="text"],
+    input[type="number"],
+    input[type="datetime-local"],
+    select {
+      width: 100%;
+      padding: 13px 14px;
+      font-size: 16px;
+      font-family: 'Roboto', sans-serif;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      background: #FAFAFA;
+      color: #212121;
+      transition: border-color 0.2s, background 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--primary);
+      background: white;
+    }
+    input[readonly] {
+      background: #F5F5F5;
+      color: var(--text-secondary);
+      cursor: default;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .field-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+
+    /* ===== AUTOCOMPLETE ===== */
+    .autocomplete-wrapper { position: relative; }
+    .autocomplete-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 200;
+      box-shadow: var(--shadow-md);
+    }
+    .ac-item {
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 15px;
+      border-bottom: 1px solid #F5F5F5;
+      transition: background 0.1s;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.focused { background: var(--primary-pale); }
+    .ac-item .ac-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .ac-empty {
+      padding: 14px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 50px;
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      font-weight: 500;
+      font-family: 'Roboto', sans-serif;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.3px;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-light); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+    }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger  { background: var(--error); color: white; }
+
+    /* ===== CAMERA ===== */
+    .camera-wrapper {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: #111;
+      position: relative;
+      aspect-ratio: 4/3;
+    }
+    .camera-wrapper video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .capture-btn {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: white;
+      border: 5px solid var(--primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .capture-btn:active { transform: translateX(-50%) scale(0.92); }
+    .capture-btn .material-icons { font-size: 28px; color: var(--primary); }
+    .camera-error {
+      width: 100%;
+      aspect-ratio: 4/3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1A1A1A;
+      color: #aaa;
+      border-radius: var(--radius-sm);
+      gap: 8px;
+      font-size: 14px;
+      text-align: center;
+      padding: 16px;
+    }
+    .camera-error .material-icons { font-size: 48px; color: #555; }
+    .photo-preview-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .photo-preview-wrap img {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--success);
+      display: block;
+      max-height: 240px;
+      object-fit: cover;
+    }
+    .photo-badge {
+      position: absolute;
+      top: 8px; right: 8px;
+      background: var(--success);
+      color: white;
+      border-radius: 16px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .camera-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .camera-note .material-icons { font-size: 14px; }
+
+    /* ===== INFO BOX ===== */
+    .info-box {
+      background: var(--primary-pale);
+      border-left: 3px solid var(--primary);
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--primary);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .info-box .material-icons { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .success-box {
+      background: var(--success-light);
+      border-left: 3px solid var(--success);
+      border-radius: 4px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    /* ===== CONFIRMATION CARD ===== */
+    .confirm-grid { display: grid; gap: 10px; margin-bottom: 16px; }
+    .confirm-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .confirm-row:last-child { border-bottom: none; }
+    .confirm-row .label { color: var(--text-secondary); flex-shrink: 0; width: 45%; }
+    .confirm-row .value { font-weight: 500; text-align: right; flex: 1; word-break: break-word; }
+
+    /* ===== SECTION TITLE ===== */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ===== TOAST ===== */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 240px;
+      max-width: calc(100vw - 32px);
+      background: #323232;
+      color: white;
+      padding: 13px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      text-align: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    #toast-container.show  { opacity: 1; }
+    #toast-container.error { background: var(--error); }
+    #toast-container.success { background: var(--success); }
+    #toast-container.warning { background: var(--warning); }
+
+    /* ===== LOADING OVERLAY ===== */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9998;
+      gap: 14px;
+      color: white;
+      font-size: 15px;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== SUCCESS SCREEN ===== */
+    #screen-success {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px 24px;
+      background: white;
+    }
+    .success-icon { font-size: 80px; color: var(--success); }
+    #screen-success h2 { font-size: 22px; margin: 16px 0 8px; color: #212121; }
+    #screen-success p  { color: var(--text-secondary); margin-bottom: 24px; font-size: 15px; }
+
+    /* ===== DASHBOARD ===== */
+    #dashboard-app {
+      min-height: 100vh;
+      background: #EEF2F7;
+    }
+    .dash-header {
+      background: var(--primary-dark);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dash-header h1 { font-size: 20px; font-weight: 500; flex: 1; }
+    .dash-header .material-icons { font-size: 28px; }
+    .dash-updated {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-right: 8px;
+    }
+    .dash-body { padding: 20px; max-width: 1400px; margin: 0 auto; }
+    .dash-date-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Stat cards grid */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .stat-icon {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .stat-icon .material-icons { font-size: 26px; }
+    .stat-icon.blue   { background: var(--primary-pale);  color: var(--primary); }
+    .stat-icon.green  { background: var(--success-light); color: var(--success); }
+    .stat-icon.orange { background: var(--warning-light); color: var(--warning); }
+    .stat-icon.red    { background: var(--error-light);   color: var(--error); }
+    .stat-text .number {
+      font-size: 32px;
+      font-weight: 700;
+      color: #212121;
+      line-height: 1;
+    }
+    .stat-text .label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* Chart cards */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .chart-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .chart-card h3 { font-size: 15px; font-weight: 500; margin-bottom: 16px; color: #212121; }
+    .chart-card canvas { max-height: 260px; }
+
+    /* Tables */
+    .table-section {
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .table-section-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .table-section-header h3 { font-size: 15px; font-weight: 500; flex: 1; }
+    .table-section-header .material-icons { color: var(--text-secondary); font-size: 20px; }
+    .badge {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-count { background: var(--primary-pale); color: var(--primary); }
+    .badge-overtime { background: var(--error-light); color: var(--error); }
+    .badge-ok       { background: var(--success-light); color: var(--success); }
+    .badge-miss     { background: var(--warning-light); color: var(--warning); }
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th {
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #FAFAFA;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 13px 16px;
+      border-bottom: 1px solid #F5F5F5;
+      vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #FAFAFA; }
+    .no-data {
+      text-align: center;
+      padding: 28px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .no-data .material-icons { font-size: 36px; display: block; margin-bottom: 8px; opacity: 0.4; }
+    .overtime-row td { background: var(--error-light) !important; }
+    .running-time { font-weight: 700; }
+    .running-time.over { color: var(--error); }
+
+    /* Helper companies */
+    .company-list { padding: 12px 20px 16px; }
+    .company-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #F5F5F5;
+    }
+    .company-item:last-child { border-bottom: none; }
+    .company-bar-wrap { flex: 1; background: #F0F0F0; border-radius: 4px; height: 8px; }
+    .company-bar { height: 8px; border-radius: 4px; background: var(--primary); }
+    .company-name { min-width: 120px; font-size: 14px; }
+    .company-count { font-size: 13px; font-weight: 700; color: var(--primary); min-width: 32px; text-align: right; }
+
+    /* ===== SPLASH SCREEN ===== */
+    #splash-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--primary-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      transition: opacity 0.6s ease;
+    }
+    #splash-screen.fade-out { opacity: 0; pointer-events: none; }
+    .splash-icon-wrap {
+      margin-bottom: 28px;
+      animation: splash-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+    .splash-icon-wrap img { width: 96px; height: 96px; border-radius: 22px; }
+    .splash-brand {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.5px;
+      animation: splash-fade-up 0.5s 0.2s ease both;
+    }
+    .splash-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      margin-top: 6px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: splash-fade-up 0.5s 0.3s ease both;
+    }
+    .splash-dots {
+      display: flex;
+      gap: 10px;
+      margin-top: 40px;
+      animation: splash-fade-up 0.5s 0.4s ease both;
+    }
+    .splash-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.35);
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    .splash-dot:nth-child(2) { animation-delay: 0.22s; }
+    .splash-dot:nth-child(3) { animation-delay: 0.44s; }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { transform: scale(0.85); opacity: 0.35; }
+      40%            { transform: scale(1.3);  opacity: 1; }
+    }
+    @keyframes splash-pop {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    @keyframes splash-fade-up {
+      from { transform: translateY(12px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* ===== HELPER MODE TOGGLE ===== */
+    .mode-toggle {
+      display: flex;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .mode-toggle-btn {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'Roboto', sans-serif;
+      background: #FAFAFA;
+      color: var(--text-secondary);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+      border-right: 1.5px solid var(--border);
+    }
+    .mode-toggle-btn:last-child { border-right: none; }
+    .mode-toggle-btn.active { background: var(--primary); color: white; }
+    .mode-toggle-btn .material-icons { font-size: 18px; }
+
+    /* Responsive tweaks */
+    @media (max-width: 480px) {
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .dash-body  { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== SERVER-INJECTED DATA ===== -->
+<script>
+  var APP_DATA           = <?!= initialData ?>;
+  var APP_VIEW           = '<?!= view ?>';
+  var APP_DEPLOYMENT_URL = '<?!= deploymentUrl ?>';
+  // Set PWA manifest link now (before DOMContentLoaded for faster browser pickup)
+  (function() {
+    if (APP_DEPLOYMENT_URL) {
+      var ml = document.getElementById('pwa-manifest');
+      if (ml) ml.href = APP_DEPLOYMENT_URL + '?manifest=1';
+    }
+  })();
+</script>
+
+<!-- ===== SPLASH SCREEN ===== -->
+<div id="splash-screen">
+  <div class="splash-icon-wrap">
+    <img src="<?!= iconDataUri ?>" alt="RSA Transport">
+  </div>
+  <div class="splash-brand">RSA Transport</div>
+  <div class="splash-sub">Driver Attendance</div>
+  <div class="splash-dots">
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+  </div>
+</div>
+
+<!-- ===== DRIVER APP ===== -->
+<div id="driver-app">
+
+  <!-- HOME -->
+  <div id="screen-home" class="hidden">
+    <div class="app-header">
+      <span class="material-icons">local_shipping</span>
+      <h1>Driver Attendance</h1>
+    </div>
+    <div class="home-welcome">
+      <span class="material-icons">fact_check</span>
+      <h2>RSA Transport</h2>
+      <p>Shift Management System</p>
+    </div>
+    <div class="home-cards">
+      <!-- Step 1 -->
+      <div class="home-card start" onclick="navigate('sos-stage1')">
+        <div class="card-icon" style="background:var(--primary-pale);color:var(--primary)">
+          <span class="material-icons">warehouse</span>
+        </div>
+        <div>
+          <h3>Arrived at Warehouse</h3>
+          <p>Stage 1 — Register your shift &amp; odometer</p>
+        </div>
+        <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
+      </div>
+      <!-- Step 2 -->
+      <div class="home-card" style="border-left-color:#F57F17" onclick="navigate('sos-stage2')">
+        <div class="card-icon" style="background:#FFF3E0;color:#E65100">
+          <span class="material-icons">exit_to_app</span>
+        </div>
+        <div>
+          <h3>Leaving Warehouse</h3>
+          <p>Stage 2 — Record your departure time</p>
+        </div>
+        <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
+      </div>
+      <!-- End of shift -->
+      <div class="home-card end" onclick="navigate('eos')">
+        <div class="card-icon">
+          <span class="material-icons">stop_circle</span>
+        </div>
+        <div>
+          <h3>End of Shift</h3>
+          <p>Record last drop &amp; complete your shift</p>
+        </div>
+        <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
+      </div>
+    </div>
+    <div style="text-align:center;padding:12px 16px 8px;">
+      <a id="dash-link" href="#" onclick="openDashboard();return false;"
+        style="font-size:13px;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+        <span class="material-icons" style="font-size:16px">dashboard</span>
+        View Operations Dashboard
+      </a>
+    </div>
+    <div style="text-align:center;padding:4px;font-size:12px;color:#999;">
+      Time zone: Asia/Dubai (UTC+4)
+    </div>
+  </div>
+
+  <!-- START OF SHIFT — STAGE 1 -->
+  <div id="screen-sos-stage1" class="hidden">
+    <div class="screen-header">
+      <button class="btn-icon" onclick="navigate('home')" aria-label="Back">
+        <span class="material-icons">arrow_back</span>
+      </button>
+      <h2>Start of Shift</h2>
+    </div>
+    <div class="step-bar">
+      <div class="step-item active" id="sos-step1">
+        <div class="step-dot">1</div><span>At Warehouse</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" id="sos-step2">
+        <div class="step-dot">2</div><span>Departure</span>
+      </div>
+    </div>
+    <div style="padding:16px">
+
+      <!-- Driver -->
+      <div class="card">
+        <p class="section-title">Driver Details</p>
+        <div class="field-group">
+          <label>Search Driver <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="sos1-driver-search" placeholder="Type name or employee ID"
+              autocomplete="off" oninput="doAutocomplete(this,'drivers',onDriverSelect)"
+              onkeydown="acKeyNav(event,'sos1-driver-list')">
+            <div id="sos1-driver-list" class="autocomplete-list hidden"></div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group" style="margin-bottom:0">
+            <label>Employee ID</label>
+            <input type="text" id="sos1-driver-id" readonly placeholder="Auto-filled">
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Driver Name</label>
+            <input type="text" id="sos1-driver-name" readonly placeholder="Auto-filled">
+          </div>
+        </div>
+      </div>
+
+      <!-- Helper -->
+      <div class="card">
+        <p class="section-title">Helper Details <span class="required">*</span></p>
+        <!-- Mode toggle -->
+        <div class="mode-toggle">
+          <button class="mode-toggle-btn active" id="helper-mode-search" type="button"
+            onclick="toggleHelperMode('search')">
+            <span class="material-icons">search</span> From List
+          </button>
+          <button class="mode-toggle-btn" id="helper-mode-manual" type="button"
+            onclick="toggleHelperMode('manual')">
+            <span class="material-icons">edit</span> Manual Entry
+          </button>
+        </div>
+
+        <!-- From List panel -->
+        <div id="helper-panel-search">
+          <div class="field-group">
+            <label>Search Helper</label>
+            <div class="autocomplete-wrapper">
+              <input type="text" id="sos1-helper-search" placeholder="Type name or employee ID"
+                autocomplete="off" oninput="doAutocomplete(this,'helpers',onHelperSelect)"
+                onkeydown="acKeyNav(event,'sos1-helper-list')">
+              <div id="sos1-helper-list" class="autocomplete-list hidden"></div>
+            </div>
+          </div>
+          <div class="field-row triple">
+            <div class="field-group" style="margin-bottom:0">
+              <label>ID</label>
+              <input type="text" id="sos1-helper-id" readonly placeholder="Auto">
+            </div>
+            <div class="field-group" style="margin-bottom:0">
+              <label>Name</label>
+              <input type="text" id="sos1-helper-name" readonly placeholder="Auto">
+            </div>
+            <div class="field-group" style="margin-bottom:0">
+              <label>Company</label>
+              <input type="text" id="sos1-helper-company" readonly placeholder="Auto">
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Entry panel -->
+        <div id="helper-panel-manual" class="hidden">
+          <div class="field-group">
+            <label>Supplier Company <span class="required">*</span></label>
+            <input type="text" id="sos1-helper-company-manual" placeholder="Enter supplier / company name">
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Helper Name <span style="color:var(--text-secondary);font-weight:400">(optional)</span></label>
+            <input type="text" id="sos1-helper-name-manual" placeholder="Enter helper name if known">
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle & Odometer -->
+      <div class="card">
+        <p class="section-title">Vehicle &amp; Odometer</p>
+        <div class="field-group">
+          <label>Vehicle Number <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="sos1-vehicle-search" placeholder="Type to search vehicle"
+              autocomplete="off" oninput="doAutocomplete(this,'vehicles',onVehicleSelect)"
+              onkeydown="acKeyNav(event,'sos1-vehicle-list')">
+            <div id="sos1-vehicle-list" class="autocomplete-list hidden"></div>
+          </div>
+          <input type="text" id="sos1-vehicle-number" readonly placeholder="Selected vehicle"
+            style="margin-top:8px;background:#F5F5F5">
+        </div>
+        <div class="field-group">
+          <label>Start Odometer (km) <span class="required">*</span></label>
+          <input type="number" id="sos1-odometer" placeholder="e.g. 123456" min="0">
+        </div>
+        <div class="field-group">
+          <label>Odometer Photo <span class="required">*</span></label>
+          <div id="camera-area-start">
+            <div id="camera-wrapper-start" class="camera-wrapper">
+              <video id="camera-video-start" autoplay playsinline muted></video>
+              <button class="capture-btn" onclick="capturePhoto('start')" type="button">
+                <span class="material-icons">camera</span>
+              </button>
+            </div>
+          </div>
+          <div id="photo-result-start" class="hidden" style="margin-top:8px">
+            <div class="photo-preview-wrap">
+              <img id="photo-img-start" alt="Odometer photo">
+              <div class="photo-badge"><span class="material-icons" style="font-size:14px">check</span> Captured</div>
+            </div>
+            <button class="btn btn-secondary" style="margin-top:8px" onclick="retakePhoto('start')" type="button">
+              <span class="material-icons">replay</span> Retake Photo
+            </button>
+          </div>
+          <p class="camera-note">
+            <span class="material-icons">info</span>
+            Camera only &mdash; file upload not allowed
+          </p>
+        </div>
+        <div class="field-group" style="margin-bottom:0">
+          <label>Fuel Taken</label>
+          <input type="text" id="sos1-fuel" placeholder="e.g. 40L, Full, None">
+        </div>
+      </div>
+
+      <!-- Shift Start Time -->
+      <div class="card">
+        <p class="section-title">Shift Start Time</p>
+        <div class="field-group" style="margin-bottom:0">
+          <label>Arrival at Warehouse Date &amp; Time <span class="required">*</span></label>
+          <input type="datetime-local" id="sos1-shift-start-time">
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+            Enter the actual time you arrived at the warehouse. Device should be on Asia/Dubai timezone (UTC+4).
+          </p>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-sos1-submit" onclick="submitStage1()" type="button">
+        <span class="material-icons">save</span> Save &amp; Continue to Stage 2
+      </button>
+    </div>
+  </div>
+
+  <!-- START OF SHIFT — STAGE 2 -->
+  <div id="screen-sos-stage2" class="hidden">
+    <div class="screen-header">
+      <button class="btn-icon" onclick="navigate('home')" aria-label="Home">
+        <span class="material-icons">home</span>
+      </button>
+      <h2>Start of Shift — Departure</h2>
+    </div>
+    <div class="step-bar">
+      <div class="step-item done" id="sos2-step1">
+        <div class="step-dot"><span class="material-icons" style="font-size:14px">check</span></div><span>At Warehouse</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item active" id="sos2-step2">
+        <div class="step-dot">2</div><span>Departure</span>
+      </div>
+    </div>
+    <div style="padding:16px">
+      <div class="success-box">
+        <span class="material-icons">check_circle</span>
+        Stage 1 saved! Complete this step when leaving the warehouse.
+      </div>
+
+      <div class="card">
+        <p class="section-title">Confirm Your Identity</p>
+        <div class="field-group">
+          <label>Search Your Name <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="sos2-driver-search" placeholder="Type your name or ID"
+              autocomplete="off" oninput="doAutocomplete(this,'stage1Drivers',onStage2DriverSelect)"
+              onkeydown="acKeyNav(event,'sos2-driver-list')">
+            <div id="sos2-driver-list" class="autocomplete-list hidden"></div>
+          </div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px">
+            Only drivers who completed Stage 1 today are shown.
+          </p>
+        </div>
+
+        <div id="sos2-confirm-details" class="hidden">
+          <div class="confirm-grid">
+            <div class="confirm-row">
+              <span class="label">Driver</span>
+              <span class="value" id="sos2-c-driver"></span>
+            </div>
+            <div class="confirm-row">
+              <span class="label">Helper</span>
+              <span class="value" id="sos2-c-helper"></span>
+            </div>
+            <div class="confirm-row">
+              <span class="label">Vehicle</span>
+              <span class="value" id="sos2-c-vehicle"></span>
+            </div>
+            <div class="confirm-row">
+              <span class="label">Arrived at</span>
+              <span class="value" id="sos2-c-arrival"></span>
+            </div>
+          </div>
+          <div class="field-group" style="margin-top:12px">
+            <label>Departure Date &amp; Time <span class="required">*</span></label>
+            <input type="datetime-local" id="sos2-departure-time">
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+              Enter the actual time you left the warehouse. Device should be on Asia/Dubai timezone (UTC+4).
+            </p>
+          </div>
+          <button class="btn btn-primary" id="btn-sos2-submit" onclick="submitStage2()" type="button">
+            <span class="material-icons">exit_to_app</span> Confirm Departure
+          </button>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary" onclick="navigate('sos-stage1')" type="button" style="margin-top:4px">
+        <span class="material-icons">arrow_back</span> Back to Stage 1 Form
+      </button>
+    </div>
+  </div>
+
+  <!-- END OF SHIFT -->
+  <div id="screen-eos" class="hidden">
+    <div class="screen-header">
+      <button class="btn-icon" onclick="navigate('home')" aria-label="Back">
+        <span class="material-icons">arrow_back</span>
+      </button>
+      <h2>End of Shift</h2>
+    </div>
+    <div style="padding:16px">
+
+      <div class="card">
+        <p class="section-title">Select Driver</p>
+        <div class="field-group">
+          <label>Search Your Name <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="eos-driver-search" placeholder="Type your name or ID"
+              autocomplete="off" oninput="doAutocomplete(this,'activeDrivers',onEosDriverSelect)"
+              onkeydown="acKeyNav(event,'eos-driver-list')">
+            <div id="eos-driver-list" class="autocomplete-list hidden"></div>
+          </div>
+          <div id="eos-loading-drivers" class="hidden" style="font-size:13px;color:var(--text-secondary);margin-top:6px;display:flex;align-items:center;gap:6px;">
+            <div style="width:14px;height:14px;border:2px solid #ccc;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            Loading active drivers...
+          </div>
+          <p id="eos-driver-note" style="font-size:12px;color:var(--text-secondary);margin-top:6px">
+            All drivers with an active shift are shown (including those who skipped Stage 2).
+          </p>
+          <button onclick="loadActiveDrivers()" type="button"
+            style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:4px;margin-top:4px;">
+            <span class="material-icons" style="font-size:15px">refresh</span> Refresh list
+          </button>
+        </div>
+      </div>
+
+      <div id="eos-form" class="hidden">
+        <!-- Last Drop -->
+        <div class="card">
+          <p class="section-title">Drop Details</p>
+          <div class="field-group">
+            <label>Last Drop Date &amp; Time <span class="required">*</span></label>
+            <input type="datetime-local" id="eos-last-drop">
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+              Ensure your device is set to Asia/Dubai timezone (UTC+4).
+            </p>
+          </div>
+          <div class="field-group">
+            <label>Shift Complete Date &amp; Time <span class="required">*</span></label>
+            <input type="datetime-local" id="eos-shift-complete">
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+              Enter the actual time you completed your shift. Device should be on Asia/Dubai timezone (UTC+4).
+            </p>
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Number of Failed Drops <span class="required">*</span></label>
+            <input type="number" id="eos-failed-drops" min="0" value="0">
+          </div>
+        </div>
+
+        <!-- End Odometer -->
+        <div class="card">
+          <p class="section-title">End Odometer &amp; Photo</p>
+          <div class="field-group">
+            <label>End Odometer (km) <span class="required">*</span></label>
+            <input type="number" id="eos-odometer" placeholder="e.g. 124500" min="0">
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Odometer Photo <span class="required">*</span></label>
+            <div id="camera-area-end">
+              <div id="camera-wrapper-end" class="camera-wrapper">
+                <video id="camera-video-end" autoplay playsinline muted></video>
+                <button class="capture-btn" onclick="capturePhoto('end')" type="button">
+                  <span class="material-icons">camera</span>
+                </button>
+              </div>
+            </div>
+            <div id="photo-result-end" class="hidden" style="margin-top:8px">
+              <div class="photo-preview-wrap">
+                <img id="photo-img-end" alt="End odometer photo">
+                <div class="photo-badge"><span class="material-icons" style="font-size:14px">check</span> Captured</div>
+              </div>
+              <button class="btn btn-secondary" style="margin-top:8px" onclick="retakePhoto('end')" type="button">
+                <span class="material-icons">replay</span> Retake Photo
+              </button>
+            </div>
+            <p class="camera-note">
+              <span class="material-icons">info</span>
+              Camera only &mdash; file upload not allowed
+            </p>
+          </div>
+        </div>
+
+        <button class="btn btn-success" id="btn-eos-submit" onclick="submitEos()" type="button">
+          <span class="material-icons">check_circle</span> Complete Shift
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS SCREEN -->
+  <div id="screen-success" class="hidden">
+    <span class="material-icons success-icon">check_circle</span>
+    <h2 id="success-title">Done!</h2>
+    <p id="success-msg">Your data has been saved.</p>
+    <div id="success-stats" class="hidden" style="margin-bottom:16px;font-size:15px;color:var(--text-secondary)"></div>
+    <button class="btn btn-primary" style="max-width:280px" onclick="navigate('home')" type="button">
+      Back to Home
+    </button>
+  </div>
+
+</div><!-- end #driver-app -->
+
+<!-- ===== MASTER DASHBOARD ===== -->
+<div id="dashboard-app" class="hidden">
+  <div class="dash-header">
+    <span class="material-icons">dashboard</span>
+    <h1>Transport Dashboard</h1>
+    <span class="dash-updated" id="dash-updated"></span>
+    <button class="btn-icon" onclick="refreshDashboard()" title="Refresh" style="color:white">
+      <span class="material-icons">refresh</span>
+    </button>
+  </div>
+
+  <div class="dash-body">
+    <p class="dash-date-label" id="dash-date-label"></p>
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue"><span class="material-icons">person_pin</span></div>
+        <div class="stat-text">
+          <div class="number" id="stat-active">—</div>
+          <div class="label">Active Drivers</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><span class="material-icons">check_circle_outline</span></div>
+        <div class="stat-text">
+          <div class="number" id="stat-completed">—</div>
+          <div class="label">Shifts Completed Today</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue"><span class="material-icons">timer</span></div>
+        <div class="stat-text">
+          <div class="number" id="stat-avg-duration">—</div>
+          <div class="label">Avg Shift Duration (hrs)</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange"><span class="material-icons">warning_amber</span></div>
+        <div class="stat-text">
+          <div class="number" id="stat-failed-drops">—</div>
+          <div class="label">Failed Drops Today</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red"><span class="material-icons">person_off</span></div>
+        <div class="stat-text">
+          <div class="number" id="stat-punchout">—</div>
+          <div class="label">Punch-Out Misses</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>Shift Duration Trend (Last 30 Days)</h3>
+        <canvas id="chart-trend"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Vehicle Running Hours (All Time)</h3>
+        <canvas id="chart-vehicles"></canvas>
+      </div>
+    </div>
+
+    <!-- Active Drivers Table -->
+    <div class="table-section">
+      <div class="table-section-header">
+        <span class="material-icons">directions_car</span>
+        <h3>Currently Active Drivers</h3>
+        <span class="badge badge-count" id="active-count-badge">0</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver</th>
+              <th>Vehicle</th>
+              <th>Departed At</th>
+              <th>Running Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-active"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Punch-Out Misses -->
+    <div class="table-section">
+      <div class="table-section-header">
+        <span class="material-icons">error_outline</span>
+        <h3>Punch-Out Misses (Previous Days)</h3>
+        <span class="badge badge-miss" id="miss-count-badge">0</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Shift Date</th><th>Driver</th><th>Vehicle</th></tr>
+          </thead>
+          <tbody id="tbody-misses"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Helper Companies -->
+    <div class="table-section">
+      <div class="table-section-header">
+        <span class="material-icons">business</span>
+        <h3>Top Helper Companies Today</h3>
+      </div>
+      <div class="company-list" id="company-list"></div>
+    </div>
+
+  </div>
+</div><!-- end #dashboard-app -->
+
+<!-- ===== SHARED UI ===== -->
+<div id="toast-container"></div>
+<div id="loading-overlay" class="hidden">
+  <div class="spinner"></div>
+  <span id="loading-msg">Saving...</span>
+</div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+// =============================================================================
+// STATE
+// =============================================================================
+var state = {
+  drivers:       APP_DATA.drivers  || [],
+  helpers:       APP_DATA.helpers  || [],
+  vehicles:      APP_DATA.vehicles || [],
+  activeDrivers: [],
+  stage1Drivers: [],   // drivers who have stage 1 done (from server or current session)
+  currentRowId:  null,
+  selectedEosDriver: null,
+  capturedPhotos: { start: null, end: null },
+  cameraStreams:  { start: null, end: null },
+  helperMode: 'search'  // 'search' | 'manual'
+};
+
+// =============================================================================
+// HELPER UTILITIES
+// =============================================================================
+function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+// Returns current Dubai time as 'YYYY-MM-DDTHH:MM' for datetime-local inputs
+function getDubaiNowLocalString() {
+  var now = new Date();
+  // Dubai is UTC+4 (240 minutes ahead). Compute Dubai local time via UTC offset trick.
+  var dubaiMs = now.getTime() + (now.getTimezoneOffset() + 240) * 60000;
+  var d = new Date(dubaiMs);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+         'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+// Toggle between helper search mode and manual entry mode
+function toggleHelperMode(mode) {
+  state.helperMode = mode;
+
+  var searchBtn  = document.getElementById('helper-mode-search');
+  var manualBtn  = document.getElementById('helper-mode-manual');
+  var searchPanel = document.getElementById('helper-panel-search');
+  var manualPanel = document.getElementById('helper-panel-manual');
+
+  if (mode === 'search') {
+    searchBtn.classList.add('active');
+    manualBtn.classList.remove('active');
+    searchPanel.classList.remove('hidden');
+    manualPanel.classList.add('hidden');
+    // Clear manual fields
+    document.getElementById('sos1-helper-company-manual').value = '';
+    document.getElementById('sos1-helper-name-manual').value = '';
+  } else {
+    manualBtn.classList.add('active');
+    searchBtn.classList.remove('active');
+    manualPanel.classList.remove('hidden');
+    searchPanel.classList.add('hidden');
+    // Clear search fields
+    document.getElementById('sos1-helper-search').value = '';
+    document.getElementById('sos1-helper-id').value = '';
+    document.getElementById('sos1-helper-name').value = '';
+    document.getElementById('sos1-helper-company').value = '';
+    document.getElementById('sos1-helper-list').classList.add('hidden');
+  }
+}
+
+// =============================================================================
+// NAVIGATION
+// =============================================================================
+function navigate(screen) {
+  var all = ['screen-home','screen-sos-stage1','screen-sos-stage2','screen-eos','screen-success','dashboard-app'];
+  all.forEach(function(id) { document.getElementById(id).classList.add('hidden'); });
+
+  if (screen === 'home') {
+    resetForms();
+    document.getElementById('screen-home').classList.remove('hidden');
+    stopAllCameras();
+  } else if (screen === 'sos-stage1') {
+    document.getElementById('screen-sos-stage1').classList.remove('hidden');
+    setTimeout(function() { startCamera('start'); }, 100);
+  } else if (screen === 'sos-stage2') {
+    document.getElementById('screen-sos-stage2').classList.remove('hidden');
+    stopCamera('start');
+    // Reset Stage 2 fields so user starts fresh
+    document.getElementById('sos2-driver-search').value = '';
+    document.getElementById('sos2-confirm-details').classList.add('hidden');
+    state.currentRowId = null;
+    loadStage1PendingDrivers();
+  } else if (screen === 'eos') {
+    document.getElementById('screen-eos').classList.remove('hidden');
+    document.getElementById('eos-form').classList.add('hidden');
+    state.selectedEosDriver = null;
+    document.getElementById('eos-driver-search').value = '';
+    stopCamera('end');
+    loadActiveDrivers();
+  } else if (screen === 'success') {
+    document.getElementById('screen-success').classList.remove('hidden');
+    stopAllCameras();
+  } else if (screen === 'dashboard') {
+    document.getElementById('dashboard-app').classList.remove('hidden');
+    loadDashboard();
+  }
+}
+
+function openDashboard() {
+  // APP_DEPLOYMENT_URL is the real /exec URL embedded by doGet() server-side.
+  // We must NOT use window.location.href here — inside the GAS sandbox that gives
+  // a googleusercontent.com URL which does not re-run doGet(), so ?view=dashboard
+  // would be ignored and the dashboard would appear blank.
+  var base = APP_DEPLOYMENT_URL || '';
+  if (!base) {
+    showToast('Dashboard URL not available. Please redeploy the web app.', 'error');
+    return;
+  }
+  window.open(base + '?view=dashboard', '_blank');
+}
+
+// =============================================================================
+// AUTOCOMPLETE ENGINE
+// =============================================================================
+function doAutocomplete(inputEl, dataKey, onSelect) {
+  var query   = inputEl.value.toLowerCase().trim();
+  var listId  = inputEl.parentElement.querySelector('.autocomplete-list').id;
+  var listEl  = document.getElementById(listId);
+
+  if (query.length < 1) { listEl.classList.add('hidden'); return; }
+
+  var data    = state[dataKey] || [];
+  var results = [];
+
+  if (dataKey === 'drivers' || dataKey === 'stage1Drivers') {
+    results = data.filter(function(d) {
+      return d.name.toLowerCase().includes(query) || d.id.toLowerCase().includes(query);
+    });
+  } else if (dataKey === 'helpers') {
+    results = data.filter(function(h) {
+      return h.name.toLowerCase().includes(query) || h.id.toLowerCase().includes(query);
+    });
+  } else if (dataKey === 'vehicles') {
+    results = data.filter(function(v) {
+      return v.number.toLowerCase().includes(query);
+    });
+  } else if (dataKey === 'activeDrivers') {
+    results = data.filter(function(d) {
+      return d.driverName.toLowerCase().includes(query) || d.driverId.toLowerCase().includes(query);
+    });
+  }
+
+  results = results.slice(0, 8);
+  listEl.innerHTML = '';
+
+  if (results.length === 0) {
+    listEl.innerHTML = '<div class="ac-empty">No results found</div>';
+    listEl.classList.remove('hidden');
+    return;
+  }
+
+  results.forEach(function(item, idx) {
+    var div = document.createElement('div');
+    div.className = 'ac-item';
+    div.setAttribute('data-idx', idx);
+    div.innerHTML = buildAcLabel(dataKey, item);
+    div.addEventListener('click', function() {
+      onSelect(item);
+      listEl.classList.add('hidden');
+      inputEl.value = getAcInputValue(dataKey, item);
+    });
+    listEl.appendChild(div);
+  });
+
+  listEl.classList.remove('hidden');
+}
+
+function buildAcLabel(dataKey, item) {
+  if (dataKey === 'drivers' || dataKey === 'stage1Drivers') {
+    return '<strong>' + esc(item.name) + '</strong><div class="ac-sub">' + esc(item.id) + '</div>';
+  }
+  if (dataKey === 'helpers') {
+    return '<strong>' + esc(item.name) + '</strong><div class="ac-sub">' + esc(item.id) + (item.company ? ' &bull; ' + esc(item.company) : '') + '</div>';
+  }
+  if (dataKey === 'vehicles') {
+    return '<strong>' + esc(item.number) + '</strong>';
+  }
+  if (dataKey === 'activeDrivers') {
+    return '<strong>' + esc(item.driverName) + '</strong><div class="ac-sub">' + esc(item.driverId) + ' &bull; ' + esc(item.vehicleNumber) + '</div>';
+  }
+  return '';
+}
+
+function getAcInputValue(dataKey, item) {
+  if (dataKey === 'drivers' || dataKey === 'stage1Drivers') return item.name + ' (' + item.id + ')';
+  if (dataKey === 'helpers')      return item.name + ' (' + item.id + ')';
+  if (dataKey === 'vehicles')     return item.number;
+  if (dataKey === 'activeDrivers') return item.driverName + ' (' + item.driverId + ')';
+  return '';
+}
+
+function acKeyNav(event, listId) {
+  var listEl = document.getElementById(listId);
+  if (listEl.classList.contains('hidden')) return;
+  var items  = listEl.querySelectorAll('.ac-item');
+  var focused = listEl.querySelector('.ac-item.focused');
+  var idx     = focused ? parseInt(focused.getAttribute('data-idx')) : -1;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    idx = Math.min(idx + 1, items.length - 1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    idx = Math.max(idx - 1, 0);
+  } else if (event.key === 'Enter' && focused) {
+    event.preventDefault();
+    focused.click();
+    return;
+  } else if (event.key === 'Escape') {
+    listEl.classList.add('hidden');
+    return;
+  } else { return; }
+
+  items.forEach(function(el) { el.classList.remove('focused'); });
+  if (items[idx]) {
+    items[idx].classList.add('focused');
+    items[idx].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// Close all dropdowns on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.autocomplete-wrapper')) {
+    document.querySelectorAll('.autocomplete-list').forEach(function(el) {
+      el.classList.add('hidden');
+    });
+  }
+});
+
+// =============================================================================
+// AUTOCOMPLETE CALLBACKS
+// =============================================================================
+function onDriverSelect(driver) {
+  document.getElementById('sos1-driver-id').value   = driver.id;
+  document.getElementById('sos1-driver-name').value = driver.name;
+  state._selectedDriver = driver;
+}
+
+function onHelperSelect(helper) {
+  document.getElementById('sos1-helper-id').value      = helper.id;
+  document.getElementById('sos1-helper-name').value    = helper.name;
+  document.getElementById('sos1-helper-company').value = helper.company || '';
+  state._selectedHelper = helper;
+}
+
+function onVehicleSelect(vehicle) {
+  document.getElementById('sos1-vehicle-number').value = vehicle.number;
+  state._selectedVehicle = vehicle;
+}
+
+function onStage2DriverSelect(driver) {
+  state.currentRowId = driver.rowId;
+  document.getElementById('sos2-c-driver').textContent  = driver.name + ' (' + driver.id + ')';
+  document.getElementById('sos2-c-helper').textContent  = (driver.helperName || '—') + (driver.helperCompany ? ' / ' + driver.helperCompany : '');
+  document.getElementById('sos2-c-vehicle').textContent = driver.vehicleNumber || '—';
+  document.getElementById('sos2-c-arrival').textContent = driver.arrivalTime || '—';
+  document.getElementById('sos2-confirm-details').classList.remove('hidden');
+}
+
+function onEosDriverSelect(driver) {
+  state.selectedEosDriver = driver;
+
+  // Reset EOS form fields before showing (prevents stale data from previous selection)
+  ['eos-last-drop','eos-odometer','eos-shift-complete'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var failedEl = document.getElementById('eos-failed-drops');
+  if (failedEl) failedEl.value = '0';
+  state.capturedPhotos.end = null;
+  var resultEl = document.getElementById('photo-result-end');
+  var wrapEl   = document.getElementById('camera-wrapper-end');
+  if (resultEl) resultEl.classList.add('hidden');
+  if (wrapEl)   wrapEl.classList.remove('hidden');
+
+  document.getElementById('eos-form').classList.remove('hidden');
+  // Start camera for end odometer
+  setTimeout(function() { startCamera('end'); }, 100);
+}
+
+// =============================================================================
+// STAGE 1 & 2 PENDING DRIVERS (server call for cross-device support)
+// =============================================================================
+function loadStage1PendingDrivers() {
+  // Merge session-known drivers with server data
+  callServer('getStage1PendingDrivers', [],
+    function(result) {
+      // Normalise: server returns {rowId, driverId, driverName, ...}
+      // Autocomplete expects {id, name, rowId, ...}
+      state.stage1Drivers = (result || []).map(function(d) {
+        return {
+          rowId:         d.rowId,
+          id:            d.driverId,
+          name:          d.driverName,
+          vehicleNumber: d.vehicleNumber,
+          helperName:    d.helperName,
+          helperCompany: d.helperCompany,
+          arrivalTime:   d.arrivalTime
+        };
+      });
+    },
+    function(err) {
+      console.warn('Could not load stage 1 drivers:', err);
+    }
+  );
+}
+
+function loadActiveDrivers() {
+  var loadingEl = document.getElementById('eos-loading-drivers');
+  if (loadingEl) loadingEl.classList.remove('hidden');
+
+  callServer('getActiveDriversForEndShift', [],
+    function(result) {
+      state.activeDrivers = result || [];
+      if (loadingEl) loadingEl.classList.add('hidden');
+    },
+    function(err) {
+      if (loadingEl) loadingEl.classList.add('hidden');
+      showToast('Could not load active drivers: ' + err, 'error');
+    }
+  );
+}
+
+// =============================================================================
+// CAMERA MODULE
+// =============================================================================
+function startCamera(slot) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCameraError(slot, 'Camera not supported. Please use Chrome or Safari.');
+    return;
+  }
+
+  var wrapId = 'camera-wrapper-' + slot;
+  var vidId  = 'camera-video-' + slot;
+
+  document.getElementById(wrapId).classList.remove('hidden');
+  document.getElementById('photo-result-' + slot).classList.add('hidden');
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+    audio: false
+  }).then(function(stream) {
+    var video = document.getElementById(vidId);
+    video.srcObject = stream;
+    state.cameraStreams[slot] = stream;
+  }).catch(function(err) {
+    var msg = err.name === 'NotAllowedError'
+      ? 'Camera permission denied. Please allow camera access in your browser settings.'
+      : 'Could not access camera: ' + err.message;
+    showCameraError(slot, msg);
+  });
+}
+
+function showCameraError(slot, msg) {
+  var areaId  = 'camera-area-' + slot;
+  var areaEl  = document.getElementById(areaId);
+  var wrapEl  = document.getElementById('camera-wrapper-' + slot);
+  if (wrapEl) wrapEl.classList.add('hidden');
+
+  var errDiv = document.createElement('div');
+  errDiv.className = 'camera-error';
+  errDiv.id = 'camera-error-' + slot;
+  errDiv.innerHTML = '<span class="material-icons">no_photography</span><span>' + esc(msg) + '</span>';
+  if (areaEl && !document.getElementById('camera-error-' + slot)) {
+    areaEl.appendChild(errDiv);
+  }
+}
+
+function capturePhoto(slot) {
+  var video  = document.getElementById('camera-video-' + slot);
+  if (!video || !video.videoWidth) {
+    showToast('Camera not ready. Please wait.', 'warning');
+    return;
+  }
+
+  var canvas = document.createElement('canvas');
+  var maxW   = 1280;
+  var ratio  = Math.min(1, maxW / video.videoWidth);
+  canvas.width  = Math.round(video.videoWidth  * ratio);
+  canvas.height = Math.round(video.videoHeight * ratio);
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+  state.capturedPhotos[slot] = dataUrl;
+
+  document.getElementById('photo-img-' + slot).src = dataUrl;
+  document.getElementById('photo-result-' + slot).classList.remove('hidden');
+  document.getElementById('camera-wrapper-' + slot).classList.add('hidden');
+}
+
+function retakePhoto(slot) {
+  state.capturedPhotos[slot] = null;
+  document.getElementById('photo-result-' + slot).classList.add('hidden');
+  document.getElementById('camera-wrapper-' + slot).classList.remove('hidden');
+
+  // Remove old error if any
+  var errEl = document.getElementById('camera-error-' + slot);
+  if (errEl) errEl.remove();
+
+  startCamera(slot);
+}
+
+function stopCamera(slot) {
+  if (state.cameraStreams[slot]) {
+    state.cameraStreams[slot].getTracks().forEach(function(t) { t.stop(); });
+    state.cameraStreams[slot] = null;
+  }
+}
+
+function stopAllCameras() {
+  stopCamera('start');
+  stopCamera('end');
+}
+
+// =============================================================================
+// FORM SUBMIT HANDLERS
+// =============================================================================
+function submitStage1() {
+  var driverId      = val('sos1-driver-id');
+  var driverName    = val('sos1-driver-name');
+  var vehicleNum    = val('sos1-vehicle-number');
+  var odometer      = val('sos1-odometer');
+  var fuel          = val('sos1-fuel');
+  var shiftStartTime = val('sos1-shift-start-time');
+  var photo         = state.capturedPhotos.start;
+
+  // Resolve helper fields based on mode
+  var helperId   = '';
+  var helperName = '';
+  var helperCo   = '';
+  var helperMode = state.helperMode || 'search';
+
+  if (helperMode === 'search') {
+    helperId   = val('sos1-helper-id');
+    helperName = val('sos1-helper-name');
+    helperCo   = val('sos1-helper-company');
+    if (!helperId || !helperName) { showToast('Please select a helper from the list.', 'error'); return; }
+  } else {
+    helperCo   = val('sos1-helper-company-manual');
+    helperName = val('sos1-helper-name-manual');  // optional
+    if (!helperCo) { showToast('Please enter the supplier / company name for the helper.', 'error'); return; }
+  }
+
+  if (!driverId || !driverName) { showToast('Please select a driver.', 'error'); return; }
+  if (!vehicleNum) { showToast('Please select a vehicle.', 'error'); return; }
+  if (!odometer || Number(odometer) < 0) { showToast('Please enter a valid start odometer reading.', 'error'); return; }
+  if (!photo) { showToast('Odometer photo is mandatory. Please take a photo.', 'error'); return; }
+  if (!shiftStartTime) { showToast('Please enter the shift start date & time.', 'error'); return; }
+
+  disableBtn('btn-sos1-submit');
+  showLoading('Saving shift start...');
+
+  callServer('saveShiftStart', [{
+    driverId:         driverId,
+    driverName:       driverName,
+    helperId:         helperId,
+    helperName:       helperName,
+    helperCompany:    helperCo,
+    vehicleNumber:    vehicleNum,
+    startOdometer:    Number(odometer),
+    startPhotoBase64: photo,
+    fuelTaken:        fuel,
+    shiftStartTime:   shiftStartTime
+  }],
+  function(result) {
+    hideLoading();
+    enableBtn('btn-sos1-submit');
+    if (result && result.success) {
+      state.currentRowId = result.rowId;
+      // Also push to stage1Drivers for immediate Stage 2 use
+      state.stage1Drivers.push({
+        rowId: result.rowId, id: driverId, name: driverName,
+        vehicleNumber: vehicleNum, helperName: helperName,
+        helperCompany: helperCo, arrivalTime: result.arrivalTime
+      });
+      navigate('sos-stage2');
+    } else {
+      showToast((result && result.error) || 'Failed to save. Please try again.', 'error');
+    }
+  },
+  function(err) {
+    hideLoading();
+    enableBtn('btn-sos1-submit');
+    showToast('Server error: ' + err, 'error');
+  });
+}
+
+function submitStage2() {
+  if (!state.currentRowId) { showToast('Please select your name first.', 'error'); return; }
+
+  var departureTime = val('sos2-departure-time');
+  if (!departureTime) { showToast('Please enter the departure date & time.', 'error'); return; }
+
+  disableBtn('btn-sos2-submit');
+  showLoading('Recording departure...');
+
+  callServer('saveDeparture', [state.currentRowId, departureTime],
+    function(result) {
+      hideLoading();
+      enableBtn('btn-sos2-submit');
+      if (result && result.success) {
+        state.currentRowId = null;
+        showSuccess(
+          'Stage 2 Complete!',
+          'Departure recorded at ' + (result.departureTime || ''),
+          null
+        );
+      } else {
+        showToast((result && result.error) || 'Failed to save departure.', 'error');
+      }
+    },
+    function(err) {
+      hideLoading();
+      enableBtn('btn-sos2-submit');
+      showToast('Server error: ' + err, 'error');
+    });
+}
+
+function submitEos() {
+  var driver          = state.selectedEosDriver;
+  var lastDrop        = val('eos-last-drop');
+  var shiftCompleteTime = val('eos-shift-complete');
+  var odometer        = val('eos-odometer');
+  var failedDrops     = val('eos-failed-drops');
+  var photo           = state.capturedPhotos.end;
+
+  if (!driver) { showToast('Please select your name.', 'error'); return; }
+  if (!lastDrop) { showToast('Please enter last drop date & time.', 'error'); return; }
+  if (!shiftCompleteTime) { showToast('Please enter shift complete date & time.', 'error'); return; }
+  if (!odometer || Number(odometer) < 0) { showToast('Please enter a valid end odometer reading.', 'error'); return; }
+  if (!photo) { showToast('End odometer photo is mandatory.', 'error'); return; }
+  if (failedDrops === '' || Number(failedDrops) < 0) { showToast('Please enter number of failed drops.', 'error'); return; }
+
+  disableBtn('btn-eos-submit');
+  showLoading('Completing shift...');
+
+  callServer('saveShiftEnd', [{
+    rowId:            driver.rowId,
+    lastDropTime:     lastDrop,
+    shiftCompleteTime: shiftCompleteTime,
+    endOdometer:      Number(odometer),
+    endPhotoBase64:   photo,
+    failedDrops:      Number(failedDrops)
+  }],
+  function(result) {
+    hideLoading();
+    enableBtn('btn-eos-submit');
+    if (result && result.success) {
+      var statsMsg = result.shiftDuration
+        ? 'Shift Duration: ' + result.shiftDuration + ' hrs' +
+          (result.overtime > 0 ? ' | Overtime: ' + result.overtime + ' hrs' : '')
+        : '';
+      showSuccess('Shift Complete!', 'Your shift has been recorded.', statsMsg);
+      state.capturedPhotos.end = null;
+      state.selectedEosDriver  = null;
+    } else {
+      showToast((result && result.error) || 'Failed to complete shift.', 'error');
+    }
+  },
+  function(err) {
+    hideLoading();
+    enableBtn('btn-eos-submit');
+    showToast('Server error: ' + err, 'error');
+  });
+}
+
+function showSuccess(title, msg, stats) {
+  document.getElementById('success-title').textContent = title;
+  document.getElementById('success-msg').textContent   = msg;
+  var statsEl = document.getElementById('success-stats');
+  if (stats) {
+    statsEl.textContent = stats;
+    statsEl.classList.remove('hidden');
+  } else {
+    statsEl.classList.add('hidden');
+  }
+  navigate('success');
+}
+
+// =============================================================================
+// SERVER CALL WRAPPER
+// =============================================================================
+function callServer(fnName, args, onSuccess, onFailure) {
+  var runner = google.script.run
+    .withSuccessHandler(function(result) { onSuccess(result); })
+    .withFailureHandler(function(err)    { onFailure(err.message || String(err)); });
+
+  runner[fnName].apply(runner, args);
+}
+
+// =============================================================================
+// DASHBOARD MODULE
+// =============================================================================
+var dashCharts = {};
+
+function loadDashboard() {
+  showLoading('Loading dashboard...');
+  callServer('getDashboardData', [],
+    function(data) {
+      hideLoading();
+      if (data && data.error) {
+        showToast('Dashboard error: ' + data.error, 'error');
+        return;
+      }
+      renderDashboard(data);
+    },
+    function(err) {
+      hideLoading();
+      showToast('Failed to load dashboard: ' + err, 'error');
+    }
+  );
+}
+
+function refreshDashboard() { loadDashboard(); }
+
+function renderDashboard(data) {
+  try {
+  var now = new Date();
+  document.getElementById('dash-updated').textContent = 'Updated ' + now.toLocaleTimeString();
+  document.getElementById('dash-date-label').textContent =
+    now.toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  var todayStats = data.todayStats || {};
+
+  // Stat cards
+  setText('stat-active',        data.activeCount || 0);
+  setText('stat-completed',     todayStats.completedShiftsCount || 0);
+  setText('stat-avg-duration',  Number(todayStats.avgShiftDuration || 0).toFixed(1));
+  setText('stat-failed-drops',  todayStats.totalFailedDrops || 0);
+  setText('stat-punchout',      (data.punchOutMisses || []).length);
+
+  // Charts (guard against Chart.js CDN load failure)
+  try { renderTrendChart(data.shiftTrendByDate || []); } catch(ce) { console.warn('Trend chart error:', ce); }
+  try { renderVehicleChart(data.vehicleRunTime || []); } catch(ce) { console.warn('Vehicle chart error:', ce); }
+
+  // Active drivers table
+  var activeDrivers = data.activeDrivers || [];
+  var activeBody = document.getElementById('tbody-active');
+  document.getElementById('active-count-badge').textContent = data.activeCount || 0;
+  if (!activeDrivers.length) {
+    activeBody.innerHTML = '<tr><td colspan="5" class="no-data"><span class="material-icons">person_off</span>No active drivers right now</td></tr>';
+  } else {
+    activeBody.innerHTML = activeDrivers.map(function(d) {
+      var rowClass = d.isOvertime ? 'class="overtime-row"' : '';
+      var badge    = d.isOvertime
+        ? '<span class="badge badge-overtime">OVERTIME</span>'
+        : '<span class="badge badge-ok">On Duty</span>';
+      var timeClass = 'running-time' + (d.isOvertime ? ' over' : '');
+      return '<tr ' + rowClass + '>' +
+        '<td>' + esc(d.driverName) + '</td>' +
+        '<td>' + esc(d.vehicleNumber) + '</td>' +
+        '<td>' + esc(d.departureTime) + '</td>' +
+        '<td class="' + timeClass + '">' + d.runningHours.toFixed(1) + ' hrs</td>' +
+        '<td>' + badge + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Punch-out misses
+  var punchMisses = data.punchOutMisses || [];
+  var missBody = document.getElementById('tbody-misses');
+  document.getElementById('miss-count-badge').textContent = punchMisses.length;
+  if (!punchMisses.length) {
+    missBody.innerHTML = '<tr><td colspan="3" class="no-data"><span class="material-icons">check_circle</span>No punch-out misses</td></tr>';
+  } else {
+    missBody.innerHTML = punchMisses.map(function(m) {
+      return '<tr><td>' + esc(m.shiftDate) + '</td><td>' + esc(m.driverName) + '</td><td>' + esc(m.vehicleNumber) + '</td></tr>';
+    }).join('');
+  }
+
+  // Helper companies
+  var topHelpers  = todayStats.topHelperCompanies || [];
+  var companyList = document.getElementById('company-list');
+  var maxCount    = topHelpers.length ? topHelpers[0].count : 1;
+  if (!topHelpers.length) {
+    companyList.innerHTML = '<div class="no-data"><span class="material-icons">business</span>No data for today</div>';
+  } else {
+    companyList.innerHTML = topHelpers.map(function(c) {
+      var pct = Math.round((c.count / maxCount) * 100);
+      return '<div class="company-item">' +
+        '<span class="company-name">' + esc(c.company) + '</span>' +
+        '<div class="company-bar-wrap"><div class="company-bar" style="width:' + pct + '%"></div></div>' +
+        '<span class="company-count">' + c.count + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  } catch(renderErr) {
+    console.error('Dashboard render error:', renderErr);
+    showToast('Dashboard display error: ' + renderErr.message, 'error');
+  }
+}
+
+function renderTrendChart(trendData) {
+  var ctx = document.getElementById('chart-trend').getContext('2d');
+  if (dashCharts.trend) { dashCharts.trend.destroy(); }
+  if (!trendData.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#999';
+    ctx.font = '14px Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet', ctx.canvas.width / 2, ctx.canvas.height / 2);
+    return;
+  }
+  dashCharts.trend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: trendData.map(function(d) { return d.date; }),
+      datasets: [
+        {
+          label: 'Avg Duration (hrs)',
+          data: trendData.map(function(d) { return d.avgDuration; }),
+          backgroundColor: 'rgba(21,101,192,0.8)',
+          borderRadius: 4
+        },
+        {
+          label: 'Total Overtime (hrs)',
+          data: trendData.map(function(d) { return d.totalOvertime; }),
+          backgroundColor: 'rgba(198,40,40,0.75)',
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Hours' } } }
+    }
+  });
+}
+
+function renderVehicleChart(vehicleData) {
+  var ctx = document.getElementById('chart-vehicles').getContext('2d');
+  if (dashCharts.vehicles) { dashCharts.vehicles.destroy(); }
+  if (!vehicleData.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#999';
+    ctx.font = '14px Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet', ctx.canvas.width / 2, 80);
+    return;
+  }
+  dashCharts.vehicles = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: vehicleData.map(function(v) { return v.vehicleNumber; }),
+      datasets: [{
+        label: 'Total Running Hours',
+        data: vehicleData.map(function(v) { return v.totalHours; }),
+        backgroundColor: 'rgba(25,118,210,0.8)',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, title: { display: true, text: 'Hours' } } }
+    }
+  });
+}
+
+// Auto-refresh dashboard every 5 minutes
+setInterval(function() {
+  if (APP_VIEW === 'dashboard') { loadDashboard(); }
+}, 5 * 60 * 1000);
+
+// =============================================================================
+// FORM RESET
+// =============================================================================
+function resetForms() {
+  // Stage 1 fields
+  var sos1Fields = ['sos1-driver-search','sos1-driver-id','sos1-driver-name',
+                    'sos1-helper-search','sos1-helper-id','sos1-helper-name','sos1-helper-company',
+                    'sos1-helper-company-manual','sos1-helper-name-manual',
+                    'sos1-vehicle-search','sos1-vehicle-number','sos1-odometer','sos1-fuel',
+                    'sos1-shift-start-time'];
+  sos1Fields.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Reset helper mode to search
+  toggleHelperMode('search');
+
+  // Stage 2 fields
+  document.getElementById('sos2-driver-search').value = '';
+  document.getElementById('sos2-confirm-details').classList.add('hidden');
+  var depEl = document.getElementById('sos2-departure-time');
+  if (depEl) depEl.value = '';
+
+  // EOS fields
+  ['eos-driver-search','eos-last-drop','eos-odometer','eos-shift-complete'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var failedEl = document.getElementById('eos-failed-drops');
+  if (failedEl) failedEl.value = '0';
+  document.getElementById('eos-form').classList.add('hidden');
+
+  // Reset photo captures and camera previews
+  ['start','end'].forEach(function(slot) {
+    state.capturedPhotos[slot] = null;
+    var resultEl = document.getElementById('photo-result-' + slot);
+    var wrapEl   = document.getElementById('camera-wrapper-' + slot);
+    var errEl    = document.getElementById('camera-error-' + slot);
+    if (resultEl) resultEl.classList.add('hidden');
+    if (wrapEl)   wrapEl.classList.remove('hidden');
+    if (errEl)    errEl.remove();
+  });
+
+  // Reset state
+  state._selectedDriver  = null;
+  state._selectedHelper  = null;
+  state._selectedVehicle = null;
+  state.selectedEosDriver = null;
+  state.currentRowId     = null;
+  state.activeDrivers    = [];
+  state.stage1Drivers    = [];
+
+  // Close any open autocomplete lists
+  document.querySelectorAll('.autocomplete-list').forEach(function(el) {
+    el.classList.add('hidden');
+  });
+}
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+var _toastTimer;
+function showToast(msg, type) {
+  var el = document.getElementById('toast-container');
+  el.textContent = msg;
+  el.className   = 'show ' + (type || '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { el.className = ''; }, 3500);
+}
+
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg || 'Loading...';
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function disableBtn(id) {
+  var el = document.getElementById(id);
+  if (el) el.disabled = true;
+}
+function enableBtn(id) {
+  var el = document.getElementById(id);
+  if (el) el.disabled = false;
+}
+
+function val(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function setText(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// =============================================================================
+// INIT
+// =============================================================================
+document.addEventListener('DOMContentLoaded', function() {
+  if (APP_VIEW === 'dashboard') {
+    document.getElementById('driver-app').classList.add('hidden');
+    navigate('dashboard');
+  } else {
+    navigate('home');
+  }
+
+  if (APP_DATA && APP_DATA.error) {
+    showToast('Warning: ' + APP_DATA.error, 'warning');
+  }
+
+  // Fade out splash screen — show for at least 1.5 s so branding is visible
+  setTimeout(function() {
+    var splash = document.getElementById('splash-screen');
+    if (!splash) return;
+    splash.classList.add('fade-out');
+    setTimeout(function() {
+      if (splash.parentNode) splash.parentNode.removeChild(splash);
+    }, 700);
+  }, 1500);
+});
+</script>
+
+</body>
+</html>
