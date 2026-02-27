@@ -1,6 +1,6 @@
 {
-  "name": "RSA Driver Attendance",
-  "short_name": "RSA Attend",
+  "name": "RSA Driver App",
+  "short_name": "Driver App",
   "description": "Driver shift tracking and attendance management for RSA Transport",
   "start_url": "https://skyperocketmyth.github.io/rsa-driver-attendance/",
   "scope": "https://skyperocketmyth.github.io/rsa-driver-attendance/",
