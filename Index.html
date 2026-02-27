@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Driver Attendance</title>
+  <title>RSA Driver App</title>
   <!-- PWA / installable app support -->
   <meta name="theme-color" content="#0D47A1">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="RSA Attend">
+  <meta name="apple-mobile-web-app-title" content="RSA Driver">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="<?!= iconDataUri ?>">
   <link id="pwa-manifest" rel="manifest">
@@ -17,6 +17,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script>
+    // Register datalabels plugin globally so all charts show values on bars
+    if (typeof ChartDataLabels !== 'undefined') {
+      Chart.register(ChartDataLabels);
+    }
+  </script>
 
   <style>
     /* ===== RESET & BASE ===== */
@@ -25,7 +32,7 @@
       font-family: 'Roboto', sans-serif;
       background: #F0F4F8;
       color: #212121;
-      font-size: 16px;
+      font-size: 17px;
       -webkit-font-smoothing: antialiased;
     }
     .hidden { display: none !important; }
@@ -44,7 +51,7 @@
       --warning-light: #FFF3E0;
       --card:          #FFFFFF;
       --border:        #E0E0E0;
-      --text-secondary:#616161;
+      --text-secondary:#505050;
       --shadow:        0 2px 10px rgba(0,0,0,0.08);
       --shadow-md:     0 4px 20px rgba(0,0,0,0.12);
       --radius:        12px;
@@ -90,6 +97,73 @@
     }
     .btn-icon:active { background: rgba(255,255,255,0.15); }
 
+    /* ===== LANGUAGE TOGGLE ===== */
+    .lang-toggle {
+      display: flex;
+      border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 20px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      font-family: 'Roboto', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 9px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      min-height: 32px;
+      letter-spacing: 0.3px;
+    }
+    .lang-btn.active {
+      background: rgba(255,255,255,0.25);
+      color: white;
+    }
+
+    /* ===== DRIVER SELECTED CHIP ===== */
+    .driver-chip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--primary-pale);
+      border: 1.5px solid var(--primary);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-top: 8px;
+    }
+    .driver-chip .chip-icon { color: var(--primary); flex-shrink: 0; }
+    .driver-chip .chip-info { flex: 1; }
+    .driver-chip .chip-name { font-size: 16px; font-weight: 600; color: #212121; }
+    .driver-chip .chip-id   { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .driver-chip .chip-clear {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-secondary); padding: 4px;
+      border-radius: 50%; display: flex; align-items: center;
+      min-height: 0;
+    }
+    .driver-chip .chip-clear:active { background: rgba(0,0,0,0.08); }
+
+    /* ===== RTL SUPPORT (Arabic) ===== */
+    [dir="rtl"] .app-header,
+    [dir="rtl"] .screen-header { flex-direction: row-reverse; }
+    [dir="rtl"] .home-card { flex-direction: row-reverse; border-left: none; border-right: 4px solid var(--primary); }
+    [dir="rtl"] .home-card.end { border-right-color: var(--success); border-left: none; }
+    [dir="rtl"] .home-card[style*="F57F17"] { border-right-color: #F57F17; border-left: none; }
+    [dir="rtl"] .driver-chip { flex-direction: row-reverse; }
+    [dir="rtl"] .field-group label { text-align: right; direction: rtl; }
+    [dir="rtl"] .info-box,
+    [dir="rtl"] .success-box { flex-direction: row-reverse; border-left: none; border-right: 3px solid var(--primary); }
+    [dir="rtl"] .success-box { border-right-color: var(--success); }
+    [dir="rtl"] .mode-toggle-btn { border-right: none; border-left: 1.5px solid var(--border); }
+    [dir="rtl"] .mode-toggle-btn:last-child { border-left: none; }
+    [dir="rtl"] .confirm-row { flex-direction: row-reverse; }
+    [dir="rtl"] .confirm-row .value { text-align: left; }
+    [dir="rtl"] .step-bar { flex-direction: row-reverse; }
+    [dir="rtl"] .home-card .card-icon { margin-left: 0; }
+
     /* ===== HOME SCREEN ===== */
     #screen-home .app-header { background: var(--primary-dark); }
     .home-welcome {
@@ -106,6 +180,7 @@
       background: var(--card);
       border-radius: var(--radius);
       padding: 24px 20px;
+      min-height: 80px;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -189,7 +264,7 @@
     .field-group .required { color: var(--error); }
     input[type="text"],
     input[type="number"],
-    input[type="datetime-local"],
+    input[type="date"],
     select {
       width: 100%;
       padding: 13px 14px;
@@ -329,6 +404,13 @@
       padding: 16px;
     }
     .camera-error .material-icons { font-size: 48px; color: #555; }
+
+    /* ===== CUSTOM 24H DATETIME PICKER ===== */
+    .dt-picker { display: flex; gap: 6px; align-items: center; }
+    .dt-picker .dt-date { flex: 1; min-width: 0; }
+    .dt-picker .dt-hour,
+    .dt-picker .dt-min  { width: 68px; flex-shrink: 0; padding-left: 8px; }
+    .dt-picker .dt-colon { font-weight: 700; color: var(--text-primary); font-size: 18px; flex-shrink: 0; }
     .photo-preview-wrap {
       position: relative;
       display: inline-block;
@@ -624,6 +706,31 @@
     .overtime-row td { background: var(--error-light) !important; }
     .running-time { font-weight: 700; }
     .running-time.over { color: var(--error); }
+    /* Stage badges for active drivers table */
+    .badge-stage1 { background: #FFF3E0; color: #E65100; }
+    .badge-stage2 { background: var(--primary-pale); color: var(--primary); }
+    .badge-stage3 { background: var(--success-light); color: var(--success); }
+    /* Dashboard section headers */
+    .dash-section { margin-bottom: 28px; }
+    .dash-section-title {
+      font-size: 13px; font-weight: 700; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 12px; padding-bottom: 6px;
+      border-bottom: 2px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dash-section-title .material-icons { font-size: 18px; }
+    /* Date selector row for vehicle/stage timing sections */
+    .date-selector-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .date-selector-row label { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+    .date-selector-row input[type="date"] {
+      padding: 7px 10px; font-size: 14px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); background: white; width: auto;
+    }
+    /* Drill-down rows for failed drops table */
+    .drill-row td { padding: 6px 16px; font-size: 13px; color: var(--text-secondary); background: #FAFAFA; }
 
     /* Helper companies */
     .company-list { padding: 12px 20px 16px; }
@@ -712,6 +819,7 @@
     .mode-toggle-btn {
       flex: 1;
       padding: 10px 8px;
+      min-height: 48px;
       font-size: 14px;
       font-weight: 500;
       font-family: 'Roboto', sans-serif;
@@ -759,8 +867,8 @@
   <div class="splash-icon-wrap">
     <img src="<?!= iconDataUri ?>" alt="RSA Transport">
   </div>
-  <div class="splash-brand">RSA Transport</div>
-  <div class="splash-sub">Driver Attendance</div>
+  <div class="splash-brand" data-i18n="brand">RSA Transport</div>
+  <div class="splash-sub" data-i18n="appTitle">RSA Driver App</div>
   <div class="splash-dots">
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
@@ -775,12 +883,18 @@
   <div id="screen-home" class="hidden">
     <div class="app-header">
       <span class="material-icons">local_shipping</span>
-      <h1>Driver Attendance</h1>
+      <h1 data-i18n="appTitle">RSA Driver App</h1>
+      <div class="lang-toggle">
+        <button class="lang-btn active" onclick="setLanguage('en')" type="button">EN</button>
+        <button class="lang-btn" onclick="setLanguage('hi')" type="button">हिं</button>
+        <button class="lang-btn" onclick="setLanguage('ar')" type="button">عر</button>
+        <button class="lang-btn" onclick="setLanguage('ur')" type="button">اُر</button>
+      </div>
     </div>
     <div class="home-welcome">
       <span class="material-icons">fact_check</span>
-      <h2>RSA Transport</h2>
-      <p>Shift Management System</p>
+      <h2 data-i18n="brand">RSA Transport</h2>
+      <p data-i18n="homeSubtitle">Shift Management System</p>
     </div>
     <div class="home-cards">
       <!-- Step 1 -->
@@ -789,8 +903,8 @@
           <span class="material-icons">warehouse</span>
         </div>
         <div>
-          <h3>Arrived at Warehouse</h3>
-          <p>Stage 1 — Register your shift &amp; odometer</p>
+          <h3 data-i18n="card1Title">Arrived at Warehouse</h3>
+          <p data-i18n="card1Sub">Stage 1 — Register your shift &amp; odometer</p>
         </div>
         <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
       </div>
@@ -800,19 +914,30 @@
           <span class="material-icons">exit_to_app</span>
         </div>
         <div>
-          <h3>Leaving Warehouse</h3>
-          <p>Stage 2 — Record your departure time</p>
+          <h3 data-i18n="card2Title">Leaving Warehouse</h3>
+          <p data-i18n="card2Sub">Stage 2 — Record your departure time</p>
         </div>
         <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
       </div>
-      <!-- End of shift -->
-      <div class="home-card end" onclick="navigate('eos')">
+      <!-- Step 3 — Last Drop -->
+      <div class="home-card end" onclick="navigate('eos-stage3')">
         <div class="card-icon">
+          <span class="material-icons">local_shipping</span>
+        </div>
+        <div>
+          <h3 data-i18n="card3Title">Last Drop</h3>
+          <p data-i18n="card3Sub">Stage 3 — Record last drop &amp; odometer photo</p>
+        </div>
+        <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
+      </div>
+      <!-- Step 4 — Shift Complete -->
+      <div class="home-card" style="border-left-color:#2E7D32" onclick="navigate('eos-stage4')">
+        <div class="card-icon" style="background:#E8F5E9;color:#2E7D32">
           <span class="material-icons">stop_circle</span>
         </div>
         <div>
-          <h3>End of Shift</h3>
-          <p>Record last drop &amp; complete your shift</p>
+          <h3 data-i18n="card4Title">Shift Complete</h3>
+          <p data-i18n="card4Sub">Stage 4 — Odometer reading &amp; shift close</p>
         </div>
         <span class="material-icons" style="color:#ccc;margin-left:auto;">chevron_right</span>
       </div>
@@ -821,11 +946,11 @@
       <a id="dash-link" href="#" onclick="openDashboard();return false;"
         style="font-size:13px;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
         <span class="material-icons" style="font-size:16px">dashboard</span>
-        View Operations Dashboard
+        <span data-i18n="dashLink">View Operations Dashboard</span>
       </a>
     </div>
     <div style="text-align:center;padding:4px;font-size:12px;color:#999;">
-      Time zone: Asia/Dubai (UTC+4)
+      <span data-i18n="timezone">Time zone: Asia/Dubai (UTC+4)</span>
     </div>
   </div>
 
@@ -835,64 +960,74 @@
       <button class="btn-icon" onclick="navigate('home')" aria-label="Back">
         <span class="material-icons">arrow_back</span>
       </button>
-      <h2>Start of Shift</h2>
+      <h2 data-i18n="s1Header">Start of Shift</h2>
     </div>
     <div class="step-bar">
       <div class="step-item active" id="sos-step1">
-        <div class="step-dot">1</div><span>At Warehouse</span>
+        <div class="step-dot">1</div><span data-i18n="step1">At Warehouse</span>
       </div>
       <div class="step-connector"></div>
       <div class="step-item" id="sos-step2">
-        <div class="step-dot">2</div><span>Departure</span>
+        <div class="step-dot">2</div><span data-i18n="step2">Departure</span>
       </div>
     </div>
     <div style="padding:16px">
 
       <!-- Driver -->
       <div class="card">
-        <p class="section-title">Driver Details</p>
-        <div class="field-group">
-          <label>Search Driver <span class="required">*</span></label>
+        <p class="section-title" data-i18n="driverDetails">Driver Details</p>
+        <!-- Search area (hidden after selection) -->
+        <div class="field-group" id="sos1-driver-search-area">
+          <label><span data-i18n="searchDriver">Driver</span> <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="sos1-driver-search" placeholder="Type name or employee ID"
-              autocomplete="off" oninput="doAutocomplete(this,'drivers',onDriverSelect)"
+            <input type="text" id="sos1-driver-search"
+              data-i18n-placeholder="searchDriverPh"
+              placeholder="Search by name or employee ID"
+              autocomplete="off"
+              oninput="doAutocomplete(this,'drivers',onDriverSelect)"
               onkeydown="acKeyNav(event,'sos1-driver-list')">
             <div id="sos1-driver-list" class="autocomplete-list hidden"></div>
           </div>
         </div>
-        <div class="field-row">
-          <div class="field-group" style="margin-bottom:0">
-            <label>Employee ID</label>
-            <input type="text" id="sos1-driver-id" readonly placeholder="Auto-filled">
+        <!-- Selection chip (shown after driver selected) -->
+        <div id="sos1-driver-chip" class="driver-chip hidden">
+          <span class="material-icons chip-icon">person</span>
+          <div class="chip-info">
+            <div class="chip-name" id="sos1-chip-name"></div>
+            <div class="chip-id" id="sos1-chip-id"></div>
           </div>
-          <div class="field-group" style="margin-bottom:0">
-            <label>Driver Name</label>
-            <input type="text" id="sos1-driver-name" readonly placeholder="Auto-filled">
-          </div>
+          <button class="chip-clear" onclick="clearDriverSelection()" type="button" aria-label="Change driver">
+            <span class="material-icons">close</span>
+          </button>
         </div>
+        <!-- Hidden inputs for form submission -->
+        <input type="hidden" id="sos1-driver-id">
+        <input type="hidden" id="sos1-driver-name">
       </div>
 
       <!-- Helper -->
       <div class="card">
-        <p class="section-title">Helper Details <span class="required">*</span></p>
+        <p class="section-title"><span data-i18n="helperDetails">Helper Details</span> <span class="required">*</span></p>
         <!-- Mode toggle -->
         <div class="mode-toggle">
           <button class="mode-toggle-btn active" id="helper-mode-search" type="button"
             onclick="toggleHelperMode('search')">
-            <span class="material-icons">search</span> From List
+            <span class="material-icons">search</span> <span data-i18n="fromList">From List</span>
           </button>
           <button class="mode-toggle-btn" id="helper-mode-manual" type="button"
             onclick="toggleHelperMode('manual')">
-            <span class="material-icons">edit</span> Manual Entry
+            <span class="material-icons">edit</span> <span data-i18n="manualEntry">Manual Entry</span>
           </button>
         </div>
 
         <!-- From List panel -->
         <div id="helper-panel-search">
           <div class="field-group">
-            <label>Search Helper</label>
+            <label data-i18n="searchHelper">Search Helper</label>
             <div class="autocomplete-wrapper">
-              <input type="text" id="sos1-helper-search" placeholder="Type name or employee ID"
+              <input type="text" id="sos1-helper-search"
+                data-i18n-placeholder="searchHelperPh"
+                placeholder="Type name or employee ID"
                 autocomplete="off" oninput="doAutocomplete(this,'helpers',onHelperSelect)"
                 onkeydown="acKeyNav(event,'sos1-helper-list')">
               <div id="sos1-helper-list" class="autocomplete-list hidden"></div>
@@ -917,23 +1052,29 @@
         <!-- Manual Entry panel -->
         <div id="helper-panel-manual" class="hidden">
           <div class="field-group">
-            <label>Supplier Company <span class="required">*</span></label>
-            <input type="text" id="sos1-helper-company-manual" placeholder="Enter supplier / company name">
+            <label><span data-i18n="supplierCompany">Supplier Company</span> <span class="required">*</span></label>
+            <input type="text" id="sos1-helper-company-manual"
+              data-i18n-placeholder="supplierCompanyPh"
+              placeholder="Enter supplier / company name">
           </div>
           <div class="field-group" style="margin-bottom:0">
-            <label>Helper Name <span style="color:var(--text-secondary);font-weight:400">(optional)</span></label>
-            <input type="text" id="sos1-helper-name-manual" placeholder="Enter helper name if known">
+            <label><span data-i18n="helperNameOptional">Helper Name (optional)</span></label>
+            <input type="text" id="sos1-helper-name-manual"
+              data-i18n-placeholder="helperNamePh"
+              placeholder="Enter helper name if known">
           </div>
         </div>
       </div>
 
       <!-- Vehicle & Odometer -->
       <div class="card">
-        <p class="section-title">Vehicle &amp; Odometer</p>
+        <p class="section-title" data-i18n="vehicleOdo">Vehicle &amp; Odometer</p>
         <div class="field-group">
-          <label>Vehicle Number <span class="required">*</span></label>
+          <label><span data-i18n="vehicleNum">Vehicle Number</span> <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="sos1-vehicle-search" placeholder="Type to search vehicle"
+            <input type="text" id="sos1-vehicle-search"
+              data-i18n-placeholder="vehiclePh"
+              placeholder="Type to search vehicle"
               autocomplete="off" oninput="doAutocomplete(this,'vehicles',onVehicleSelect)"
               onkeydown="acKeyNav(event,'sos1-vehicle-list')">
             <div id="sos1-vehicle-list" class="autocomplete-list hidden"></div>
@@ -942,16 +1083,19 @@
             style="margin-top:8px;background:#F5F5F5">
         </div>
         <div class="field-group">
-          <label>Start Odometer (km) <span class="required">*</span></label>
-          <input type="number" id="sos1-odometer" placeholder="e.g. 123456" min="0">
+          <label><span data-i18n="startOdo">Start Odometer (km)</span> <span class="required">*</span></label>
+          <input type="number" id="sos1-odometer"
+            data-i18n-placeholder="startOdoPh"
+            placeholder="e.g. 123456" min="0">
         </div>
         <div class="field-group">
-          <label>Odometer Photo <span class="required">*</span></label>
+          <label><span data-i18n="odoPhoto">Odometer Photo</span> <span class="required">*</span></label>
           <div id="camera-area-start">
-            <div id="camera-wrapper-start" class="camera-wrapper">
-              <video id="camera-video-start" autoplay playsinline muted></video>
-              <button class="capture-btn" onclick="capturePhoto('start')" type="button">
-                <span class="material-icons">camera</span>
+            <div id="camera-wrapper-start" class="camera-wrapper" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+              <input type="file" id="camera-input-start" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected('start',this)">
+              <span class="material-icons" style="font-size:52px;color:#555">camera_alt</span>
+              <button class="btn btn-primary" onclick="document.getElementById('camera-input-start').click()" type="button" style="font-size:14px;padding:10px 22px">
+                <span class="material-icons" style="font-size:18px;vertical-align:middle">camera</span> Take Photo
               </button>
             </div>
           </div>
@@ -966,29 +1110,66 @@
           </div>
           <p class="camera-note">
             <span class="material-icons">info</span>
-            Camera only &mdash; file upload not allowed
+            <span data-i18n="cameraNote">Camera only &mdash; file upload not allowed</span>
           </p>
         </div>
         <div class="field-group" style="margin-bottom:0">
-          <label>Fuel Taken</label>
-          <input type="text" id="sos1-fuel" placeholder="e.g. 40L, Full, None">
+          <label data-i18n="fuelTaken">Fuel Taken</label>
+          <input type="text" id="sos1-fuel"
+            data-i18n-placeholder="fuelPh"
+            placeholder="e.g. 40L, Full, None">
         </div>
       </div>
 
       <!-- Shift Start Time -->
       <div class="card">
-        <p class="section-title">Shift Start Time</p>
+        <p class="section-title" data-i18n="shiftStartSection">Shift Start Time</p>
         <div class="field-group" style="margin-bottom:0">
-          <label>Arrival at Warehouse Date &amp; Time <span class="required">*</span></label>
-          <input type="datetime-local" id="sos1-shift-start-time">
+          <label><span data-i18n="arrivalLabel">Arrival at Gate Date &amp; Time</span> <span class="required">*</span></label>
+          <div class="dt-picker">
+            <input type="date" id="sos1-shift-start-time-d" class="dt-date">
+            <select id="sos1-shift-start-time-h" class="dt-hour"></select>
+            <span class="dt-colon">:</span>
+            <select id="sos1-shift-start-time-m" class="dt-min"></select>
+          </div>
           <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
-            Enter the actual time you arrived at the warehouse. Device should be on Asia/Dubai timezone (UTC+4).
+            Enter the actual time you arrived at the gate. Device should be on Asia/Dubai timezone (UTC+4).
           </p>
         </div>
       </div>
 
+      <!-- Route & Drop Info -->
+      <div class="card">
+        <p class="section-title" data-i18n="routeInfo">Route &amp; Drop Info</p>
+        <div class="field-group">
+          <label><span data-i18n="destinationEmirate">Destination Emirate</span> <span class="required">*</span></label>
+          <select id="sos1-destination" style="width:100%;padding:12px;font-size:15px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:#212121;">
+            <option value="" data-i18n-option="destinationEmiratePh">-- Select Emirate --</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label><span data-i18n="primaryCustomer">Primary Customer Name</span> <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="sos1-customer-search"
+              data-i18n-placeholder="primaryCustomerPh"
+              placeholder="Search customer name"
+              autocomplete="off"
+              oninput="doAutocomplete(this,'customers',onCustomerSelect)"
+              onkeydown="acKeyNav(event,'sos1-customer-list')">
+            <div id="sos1-customer-list" class="autocomplete-list hidden"></div>
+          </div>
+          <input type="hidden" id="sos1-customer-name">
+        </div>
+        <div class="field-group" style="margin-bottom:0">
+          <label><span data-i18n="totalDrops">Total Drops</span> <span class="required">*</span></label>
+          <input type="number" id="sos1-total-drops"
+            data-i18n-placeholder="totalDropsPh"
+            placeholder="e.g. 25" min="0">
+        </div>
+      </div>
+
       <button class="btn btn-primary" id="btn-sos1-submit" onclick="submitStage1()" type="button">
-        <span class="material-icons">save</span> Save &amp; Continue to Stage 2
+        <span class="material-icons">save</span> <span data-i18n="saveContinue">Save &amp; Continue to Stage 2</span>
       </button>
     </div>
   </div>
@@ -999,34 +1180,36 @@
       <button class="btn-icon" onclick="navigate('home')" aria-label="Home">
         <span class="material-icons">home</span>
       </button>
-      <h2>Start of Shift — Departure</h2>
+      <h2 data-i18n="s2Header">Start of Shift — Departure</h2>
     </div>
     <div class="step-bar">
       <div class="step-item done" id="sos2-step1">
-        <div class="step-dot"><span class="material-icons" style="font-size:14px">check</span></div><span>At Warehouse</span>
+        <div class="step-dot"><span class="material-icons" style="font-size:14px">check</span></div><span data-i18n="step1">At Warehouse</span>
       </div>
       <div class="step-connector"></div>
       <div class="step-item active" id="sos2-step2">
-        <div class="step-dot">2</div><span>Departure</span>
+        <div class="step-dot">2</div><span data-i18n="step2">Departure</span>
       </div>
     </div>
     <div style="padding:16px">
       <div class="success-box">
         <span class="material-icons">check_circle</span>
-        Stage 1 saved! Complete this step when leaving the warehouse.
+        <span data-i18n="s1Saved">Stage 1 saved! Complete this step when leaving the warehouse.</span>
       </div>
 
       <div class="card">
-        <p class="section-title">Confirm Your Identity</p>
+        <p class="section-title" data-i18n="confirmIdentity">Confirm Your Identity</p>
         <div class="field-group">
-          <label>Search Your Name <span class="required">*</span></label>
+          <label><span data-i18n="searchYourName">Search Your Name</span> <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="sos2-driver-search" placeholder="Type your name or ID"
+            <input type="text" id="sos2-driver-search"
+              data-i18n-placeholder="searchDriverPh"
+              placeholder="Type your name or ID"
               autocomplete="off" oninput="doAutocomplete(this,'stage1Drivers',onStage2DriverSelect)"
               onkeydown="acKeyNav(event,'sos2-driver-list')">
             <div id="sos2-driver-list" class="autocomplete-list hidden"></div>
           </div>
-          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px">
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" data-i18n="stage1Note">
             Only drivers who completed Stage 1 today are shown.
           </p>
         </div>
@@ -1034,31 +1217,36 @@
         <div id="sos2-confirm-details" class="hidden">
           <div class="confirm-grid">
             <div class="confirm-row">
-              <span class="label">Driver</span>
+              <span class="label" data-i18n="driverLabel">Driver</span>
               <span class="value" id="sos2-c-driver"></span>
             </div>
             <div class="confirm-row">
-              <span class="label">Helper</span>
+              <span class="label" data-i18n="helperLabel">Helper</span>
               <span class="value" id="sos2-c-helper"></span>
             </div>
             <div class="confirm-row">
-              <span class="label">Vehicle</span>
+              <span class="label" data-i18n="vehicleLabel">Vehicle</span>
               <span class="value" id="sos2-c-vehicle"></span>
             </div>
             <div class="confirm-row">
-              <span class="label">Arrived at</span>
+              <span class="label" data-i18n="arrivedAt">Arrived at</span>
               <span class="value" id="sos2-c-arrival"></span>
             </div>
           </div>
           <div class="field-group" style="margin-top:12px">
-            <label>Departure Date &amp; Time <span class="required">*</span></label>
-            <input type="datetime-local" id="sos2-departure-time">
+            <label><span data-i18n="departureLabel">Departure Date &amp; Time</span> <span class="required">*</span></label>
+            <div class="dt-picker">
+              <input type="date" id="sos2-departure-time-d" class="dt-date">
+              <select id="sos2-departure-time-h" class="dt-hour"></select>
+              <span class="dt-colon">:</span>
+              <select id="sos2-departure-time-m" class="dt-min"></select>
+            </div>
             <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
               Enter the actual time you left the warehouse. Device should be on Asia/Dubai timezone (UTC+4).
             </p>
           </div>
           <button class="btn btn-primary" id="btn-sos2-submit" onclick="submitStage2()" type="button">
-            <span class="material-icons">exit_to_app</span> Confirm Departure
+            <span class="material-icons">exit_to_app</span> <span data-i18n="recordDeparture">Confirm Departure</span>
           </button>
         </div>
       </div>
@@ -1069,78 +1257,149 @@
     </div>
   </div>
 
-  <!-- END OF SHIFT -->
-  <div id="screen-eos" class="hidden">
+  <!-- STAGE 3 — LAST DROP -->
+  <div id="screen-eos-stage3" class="hidden">
     <div class="screen-header">
       <button class="btn-icon" onclick="navigate('home')" aria-label="Back">
         <span class="material-icons">arrow_back</span>
       </button>
-      <h2>End of Shift</h2>
+      <h2 data-i18n="eos3Header">Last Drop — Stage 3</h2>
     </div>
     <div style="padding:16px">
 
       <div class="card">
-        <p class="section-title">Select Driver</p>
+        <p class="section-title" data-i18n="selectDriver">Select Driver</p>
         <div class="field-group">
-          <label>Search Your Name <span class="required">*</span></label>
+          <label><span data-i18n="searchYourName">Search Your Name</span> <span class="required">*</span></label>
           <div class="autocomplete-wrapper">
-            <input type="text" id="eos-driver-search" placeholder="Type your name or ID"
-              autocomplete="off" oninput="doAutocomplete(this,'activeDrivers',onEosDriverSelect)"
-              onkeydown="acKeyNav(event,'eos-driver-list')">
-            <div id="eos-driver-list" class="autocomplete-list hidden"></div>
+            <input type="text" id="eos3-driver-search"
+              data-i18n-placeholder="searchDriverPh"
+              placeholder="Type your name or ID"
+              autocomplete="off" oninput="doAutocomplete(this,'activeDrivers',onEos3DriverSelect)"
+              onkeydown="acKeyNav(event,'eos3-driver-list')">
+            <div id="eos3-driver-list" class="autocomplete-list hidden"></div>
           </div>
-          <div id="eos-loading-drivers" class="hidden" style="font-size:13px;color:var(--text-secondary);margin-top:6px;display:flex;align-items:center;gap:6px;">
+          <div id="eos3-loading-drivers" class="hidden" style="font-size:13px;color:var(--text-secondary);margin-top:6px;display:flex;align-items:center;gap:6px;">
             <div style="width:14px;height:14px;border:2px solid #ccc;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
             Loading active drivers...
           </div>
-          <p id="eos-driver-note" style="font-size:12px;color:var(--text-secondary);margin-top:6px">
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" data-i18n="eosDriverNote">
             All drivers with an active shift are shown (including those who skipped Stage 2).
           </p>
           <button onclick="loadActiveDrivers()" type="button"
             style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:4px;margin-top:4px;">
-            <span class="material-icons" style="font-size:15px">refresh</span> Refresh list
+            <span class="material-icons" style="font-size:15px">refresh</span> <span data-i18n="refreshList">Refresh list</span>
           </button>
         </div>
       </div>
 
-      <div id="eos-form" class="hidden">
-        <!-- Last Drop -->
+      <div id="eos3-form" class="hidden">
         <div class="card">
-          <p class="section-title">Drop Details</p>
+          <p class="section-title" data-i18n="dropDetails">Drop Details</p>
           <div class="field-group">
-            <label>Last Drop Date &amp; Time <span class="required">*</span></label>
-            <input type="datetime-local" id="eos-last-drop">
+            <label><span data-i18n="lastDrop">Last Drop Date &amp; Time</span> <span class="required">*</span></label>
+            <div class="dt-picker">
+              <input type="date" id="eos3-last-drop-d" class="dt-date">
+              <select id="eos3-last-drop-h" class="dt-hour"></select>
+              <span class="dt-colon">:</span>
+              <select id="eos3-last-drop-m" class="dt-min"></select>
+            </div>
             <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
               Ensure your device is set to Asia/Dubai timezone (UTC+4).
             </p>
           </div>
           <div class="field-group">
-            <label>Shift Complete Date &amp; Time <span class="required">*</span></label>
-            <input type="datetime-local" id="eos-shift-complete">
-            <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
-              Enter the actual time you completed your shift. Device should be on Asia/Dubai timezone (UTC+4).
+            <label><span data-i18n="lastDropPhoto">Last Drop Odometer Photo</span> <span class="required">*</span></label>
+            <div id="camera-area-lastDrop">
+              <div id="camera-wrapper-lastDrop" class="camera-wrapper" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+                <input type="file" id="camera-input-lastDrop" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected('lastDrop',this)">
+                <span class="material-icons" style="font-size:52px;color:#555">camera_alt</span>
+                <button class="btn btn-primary" onclick="document.getElementById('camera-input-lastDrop').click()" type="button" style="font-size:14px;padding:10px 22px">
+                  <span class="material-icons" style="font-size:18px;vertical-align:middle">camera</span> Take Photo
+                </button>
+              </div>
+            </div>
+            <div id="photo-result-lastDrop" class="hidden" style="margin-top:8px">
+              <div class="photo-preview-wrap">
+                <img id="photo-img-lastDrop" alt="Last drop odometer photo">
+                <div class="photo-badge"><span class="material-icons" style="font-size:14px">check</span> Captured</div>
+              </div>
+              <button class="btn btn-secondary" style="margin-top:8px" onclick="retakePhoto('lastDrop')" type="button">
+                <span class="material-icons">replay</span> Retake Photo
+              </button>
+            </div>
+            <p class="camera-note">
+              <span class="material-icons">info</span>
+              <span data-i18n="cameraNote">Camera only &mdash; file upload not allowed</span>
             </p>
           </div>
           <div class="field-group" style="margin-bottom:0">
-            <label>Number of Failed Drops <span class="required">*</span></label>
-            <input type="number" id="eos-failed-drops" min="0" value="0">
+            <label><span data-i18n="failedDrops">Number of Failed Drops</span> <span class="required">*</span></label>
+            <input type="number" id="eos3-failed-drops" min="0" value="0">
           </div>
         </div>
 
+        <button class="btn btn-primary" id="btn-eos3-submit" onclick="submitStage3()" type="button">
+          <span class="material-icons">save</span> <span data-i18n="saveLastDrop">Save Last Drop</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 4 — SHIFT COMPLETE -->
+  <div id="screen-eos-stage4" class="hidden">
+    <div class="screen-header">
+      <button class="btn-icon" onclick="navigate('home')" aria-label="Back">
+        <span class="material-icons">arrow_back</span>
+      </button>
+      <h2 data-i18n="eos4Header">Shift Complete — Stage 4</h2>
+    </div>
+    <div style="padding:16px">
+
+      <div class="card">
+        <p class="section-title" data-i18n="selectDriver">Select Driver</p>
+        <div class="field-group">
+          <label><span data-i18n="searchYourName">Search Your Name</span> <span class="required">*</span></label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="eos4-driver-search"
+              data-i18n-placeholder="searchDriverPh"
+              placeholder="Type your name or ID"
+              autocomplete="off" oninput="doAutocomplete(this,'stage3Drivers',onEos4DriverSelect)"
+              onkeydown="acKeyNav(event,'eos4-driver-list')">
+            <div id="eos4-driver-list" class="autocomplete-list hidden"></div>
+          </div>
+          <div id="eos4-loading-drivers" class="hidden" style="font-size:13px;color:var(--text-secondary);margin-top:6px;display:flex;align-items:center;gap:6px;">
+            <div style="width:14px;height:14px;border:2px solid #ccc;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            Loading drivers...
+          </div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" data-i18n="eos4DriverNote">
+            Drivers who completed Stage 3 are shown here.
+          </p>
+          <button onclick="loadStage3Drivers()" type="button"
+            style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:4px;margin-top:4px;">
+            <span class="material-icons" style="font-size:15px">refresh</span> <span data-i18n="refreshList">Refresh list</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="eos4-form" class="hidden">
         <!-- End Odometer -->
         <div class="card">
-          <p class="section-title">End Odometer &amp; Photo</p>
+          <p class="section-title" data-i18n="endOdoSection">End Odometer &amp; Photo</p>
           <div class="field-group">
-            <label>End Odometer (km) <span class="required">*</span></label>
-            <input type="number" id="eos-odometer" placeholder="e.g. 124500" min="0">
+            <label><span data-i18n="endOdo">End Odometer (km)</span> <span class="required">*</span></label>
+            <input type="number" id="eos4-odometer"
+              data-i18n-placeholder="endOdoPh"
+              placeholder="e.g. 124500" min="0">
           </div>
           <div class="field-group" style="margin-bottom:0">
-            <label>Odometer Photo <span class="required">*</span></label>
+            <label><span data-i18n="odoPhoto">Odometer Photo</span> <span class="required">*</span></label>
             <div id="camera-area-end">
-              <div id="camera-wrapper-end" class="camera-wrapper">
-                <video id="camera-video-end" autoplay playsinline muted></video>
-                <button class="capture-btn" onclick="capturePhoto('end')" type="button">
-                  <span class="material-icons">camera</span>
+              <div id="camera-wrapper-end" class="camera-wrapper" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+                <input type="file" id="camera-input-end" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected('end',this)">
+                <span class="material-icons" style="font-size:52px;color:#555">camera_alt</span>
+                <button class="btn btn-primary" onclick="document.getElementById('camera-input-end').click()" type="button" style="font-size:14px;padding:10px 22px">
+                  <span class="material-icons" style="font-size:18px;vertical-align:middle">camera</span> Take Photo
                 </button>
               </div>
             </div>
@@ -1155,13 +1414,30 @@
             </div>
             <p class="camera-note">
               <span class="material-icons">info</span>
-              Camera only &mdash; file upload not allowed
+              <span data-i18n="cameraNote">Camera only &mdash; file upload not allowed</span>
             </p>
           </div>
         </div>
 
-        <button class="btn btn-success" id="btn-eos-submit" onclick="submitEos()" type="button">
-          <span class="material-icons">check_circle</span> Complete Shift
+        <!-- Shift Complete Time -->
+        <div class="card">
+          <p class="section-title" data-i18n="shiftCompleteSection">Shift Complete Time</p>
+          <div class="field-group" style="margin-bottom:0">
+            <label><span data-i18n="shiftComplete">Shift Complete Date &amp; Time</span> <span class="required">*</span></label>
+            <div class="dt-picker">
+              <input type="date" id="eos4-shift-complete-d" class="dt-date">
+              <select id="eos4-shift-complete-h" class="dt-hour"></select>
+              <span class="dt-colon">:</span>
+              <select id="eos4-shift-complete-m" class="dt-min"></select>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+              Enter the actual time you completed your shift. Device should be on Asia/Dubai timezone (UTC+4).
+            </p>
+          </div>
+        </div>
+
+        <button class="btn btn-success" id="btn-eos4-submit" onclick="submitStage4()" type="button">
+          <span class="material-icons">check_circle</span> <span data-i18n="completeShift">Complete Shift</span>
         </button>
       </div>
     </div>
@@ -1174,7 +1450,7 @@
     <p id="success-msg">Your data has been saved.</p>
     <div id="success-stats" class="hidden" style="margin-bottom:16px;font-size:15px;color:var(--text-secondary)"></div>
     <button class="btn btn-primary" style="max-width:280px" onclick="navigate('home')" type="button">
-      Back to Home
+      <span data-i18n="backHome">Back to Home</span>
     </button>
   </div>
 
@@ -1183,6 +1459,9 @@
 <!-- ===== MASTER DASHBOARD ===== -->
 <div id="dashboard-app" class="hidden">
   <div class="dash-header">
+    <button class="btn-icon" onclick="navigate('home')" title="Back to App" style="color:white;margin-right:4px">
+      <span class="material-icons">arrow_back</span>
+    </button>
     <span class="material-icons">dashboard</span>
     <h1>Transport Dashboard</h1>
     <span class="dash-updated" id="dash-updated"></span>
@@ -1194,104 +1473,230 @@
   <div class="dash-body">
     <p class="dash-date-label" id="dash-date-label"></p>
 
-    <!-- Stat cards -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-icon blue"><span class="material-icons">person_pin</span></div>
-        <div class="stat-text">
-          <div class="number" id="stat-active">—</div>
-          <div class="label">Active Drivers</div>
-        </div>
+    <!-- SECTION 1: Today's Overview -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">bar_chart</span> Today's Overview
       </div>
-      <div class="stat-card">
-        <div class="stat-icon green"><span class="material-icons">check_circle_outline</span></div>
-        <div class="stat-text">
-          <div class="number" id="stat-completed">—</div>
-          <div class="label">Shifts Completed Today</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><span class="material-icons">person_pin</span></div>
+          <div class="stat-text">
+            <div class="number" id="stat-active">—</div>
+            <div class="label">Active Drivers</div>
+          </div>
         </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon blue"><span class="material-icons">timer</span></div>
-        <div class="stat-text">
-          <div class="number" id="stat-avg-duration">—</div>
-          <div class="label">Avg Shift Duration (hrs)</div>
+        <div class="stat-card">
+          <div class="stat-icon green"><span class="material-icons">check_circle_outline</span></div>
+          <div class="stat-text">
+            <div class="number" id="stat-completed">—</div>
+            <div class="label">Shifts Completed Today</div>
+          </div>
         </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon orange"><span class="material-icons">warning_amber</span></div>
-        <div class="stat-text">
-          <div class="number" id="stat-failed-drops">—</div>
-          <div class="label">Failed Drops Today</div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><span class="material-icons">timer</span></div>
+          <div class="stat-text">
+            <div class="number" id="stat-avg-duration">—</div>
+            <div class="label">Avg Shift Duration (hrs)</div>
+          </div>
         </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon red"><span class="material-icons">person_off</span></div>
-        <div class="stat-text">
-          <div class="number" id="stat-punchout">—</div>
-          <div class="label">Punch-Out Misses</div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><span class="material-icons">warning_amber</span></div>
+          <div class="stat-text">
+            <div class="number" id="stat-failed-drops">—</div>
+            <div class="label">Failed Drops Today</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><span class="material-icons">person_off</span></div>
+          <div class="stat-text">
+            <div class="number" id="stat-punchout">—</div>
+            <div class="label">Punch-Out Misses</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Charts -->
-    <div class="chart-grid">
+    <!-- SECTION 2: Live Operations -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">local_shipping</span> Live Operations
+      </div>
+
+      <!-- Active Drivers Table -->
+      <div class="table-section" style="margin-bottom:16px">
+        <div class="table-section-header">
+          <span class="material-icons">directions_car</span>
+          <h3>Currently Active Drivers</h3>
+          <span class="badge badge-count" id="active-count-badge">0</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Driver</th>
+                <th>Vehicle</th>
+                <th>Stage</th>
+                <th>Arrival</th>
+                <th>Running Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-active"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Punch-Out Misses -->
+      <div class="table-section">
+        <div class="table-section-header">
+          <span class="material-icons">error_outline</span>
+          <h3>Punch-Out Misses (Previous Days)</h3>
+          <span class="badge badge-miss" id="miss-count-badge">0</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Shift Date</th><th>Driver</th><th>Vehicle</th><th>Stuck At</th></tr>
+            </thead>
+            <tbody id="tbody-misses"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: Drops Analysis -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">warning_amber</span> Drops Analysis
+      </div>
+      <div class="table-section">
+        <div class="table-section-header">
+          <span class="material-icons">analytics</span>
+          <h3>Failed Drops by Date</h3>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Date / Driver</th><th>Total Drops</th><th>Failed Drops</th><th>Failure Rate</th><th></th></tr>
+            </thead>
+            <tbody id="tbody-failed-drops"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: Shift Trends -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">trending_up</span> Shift Trends (Last 30 Days)
+      </div>
       <div class="chart-card">
-        <h3>Shift Duration Trend (Last 30 Days)</h3>
+        <h3>Shift Duration Trend</h3>
         <canvas id="chart-trend"></canvas>
       </div>
-      <div class="chart-card">
-        <h3>Vehicle Running Hours (All Time)</h3>
-        <canvas id="chart-vehicles"></canvas>
+    </div>
+
+    <!-- SECTION 5: Vehicle Analysis -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">commute</span> Vehicle Analysis
+      </div>
+      <div class="date-selector-row">
+        <label>Date:</label>
+        <input type="date" id="vehicle-date-picker">
+        <button onclick="loadVehicleKm()" class="btn btn-primary" style="min-height:36px;padding:0 14px;font-size:13px;width:auto">
+          <span class="material-icons" style="font-size:16px;vertical-align:middle">refresh</span> Load
+        </button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3 id="vehicle-km-title">Vehicle km Run — Previous Day</h3>
+          <canvas id="chart-vehicle-km"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3 id="vehicle-hours-title">Vehicle Running Hours</h3>
+          <div class="date-selector-row" style="margin-top:4px">
+            <label>From:</label>
+            <input type="date" id="vhours-from-picker">
+            <label>To:</label>
+            <input type="date" id="vhours-to-picker">
+            <button onclick="loadVehicleHours()" class="btn btn-primary" style="min-height:32px;padding:0 12px;font-size:12px;width:auto">
+              <span class="material-icons" style="font-size:14px;vertical-align:middle">refresh</span> Load
+            </button>
+          </div>
+          <canvas id="chart-vehicles"></canvas>
+        </div>
       </div>
     </div>
 
-    <!-- Active Drivers Table -->
-    <div class="table-section">
-      <div class="table-section-header">
-        <span class="material-icons">directions_car</span>
-        <h3>Currently Active Drivers</h3>
-        <span class="badge badge-count" id="active-count-badge">0</span>
+    <!-- SECTION 6: Overtime Analysis -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">schedule</span> Overtime Analysis
       </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Driver</th>
-              <th>Vehicle</th>
-              <th>Departed At</th>
-              <th>Running Time</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-active"></tbody>
-        </table>
+      <div class="table-section">
+        <div class="table-section-header">
+          <span class="material-icons">more_time</span>
+          <h3>Overtime by Date &amp; Driver</h3>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Driver</th><th>Shift Duration (hrs)</th><th>Overtime (hrs)</th></tr>
+            </thead>
+            <tbody id="tbody-overtime"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Punch-Out Misses -->
-    <div class="table-section">
-      <div class="table-section-header">
-        <span class="material-icons">error_outline</span>
-        <h3>Punch-Out Misses (Previous Days)</h3>
-        <span class="badge badge-miss" id="miss-count-badge">0</span>
+    <!-- SECTION 7: Stage Timing Breakdown -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">timeline</span> Stage Timing Breakdown
       </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr><th>Shift Date</th><th>Driver</th><th>Vehicle</th></tr>
-          </thead>
-          <tbody id="tbody-misses"></tbody>
-        </table>
+      <div class="date-selector-row">
+        <label>Date:</label>
+        <input type="date" id="stage-timing-date-picker">
+        <button onclick="loadStageTimings()" class="btn btn-primary" style="min-height:36px;padding:0 14px;font-size:13px;width:auto">
+          <span class="material-icons" style="font-size:16px;vertical-align:middle">refresh</span> Load
+        </button>
+      </div>
+      <div class="table-section">
+        <div class="table-section-header">
+          <span class="material-icons">alarm</span>
+          <h3 id="stage-timing-title">Stage Timing — Previous Day</h3>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Driver</th>
+                <th>Vehicle</th>
+                <th>Stage 1→2 Gap</th>
+                <th>Stage 2→3 Gap</th>
+                <th>Stage 3→4 Gap</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-stage-timing"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Helper Companies -->
-    <div class="table-section">
-      <div class="table-section-header">
-        <span class="material-icons">business</span>
-        <h3>Top Helper Companies Today</h3>
+    <!-- SECTION 8: Helper Companies -->
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <span class="material-icons">business</span> Helper Companies
       </div>
-      <div class="company-list" id="company-list"></div>
+      <div class="table-section">
+        <div class="table-section-header">
+          <span class="material-icons">business</span>
+          <h3>Top Helper Companies Today</h3>
+        </div>
+        <div class="company-list" id="company-list"></div>
+      </div>
     </div>
 
   </div>
@@ -1307,18 +1712,313 @@
 <!-- ===== JAVASCRIPT ===== -->
 <script>
 // =============================================================================
+// i18n — TRANSLATIONS
+// =============================================================================
+var TRANSLATIONS = {
+  en: {
+    appTitle: 'RSA Driver App',
+    brand: 'RSA Transport',
+    homeSubtitle: 'Shift Management System',
+    card1Title: 'Arrived at Warehouse',
+    card1Sub: 'Stage 1 — Register your shift & odometer',
+    card2Title: 'Leaving Warehouse',
+    card2Sub: 'Stage 2 — Record your departure time',
+    card3Title: 'Last Drop',
+    card3Sub: 'Stage 3 — Record last drop & odometer photo',
+    card4Title: 'Shift Complete',
+    card4Sub: 'Stage 4 — Odometer reading & shift close',
+    dashLink: 'View Operations Dashboard',
+    timezone: 'Time zone: Asia/Dubai (UTC+4)',
+    s1Header: 'Start of Shift',
+    s2Header: 'Start of Shift — Departure',
+    eos3Header: 'Last Drop — Stage 3',
+    eos4Header: 'Shift Complete — Stage 4',
+    step1: 'At Warehouse', step2: 'Departure',
+    driverDetails: 'Driver Details',
+    searchDriver: 'Driver', searchDriverPh: 'Search by name or employee ID',
+    helperDetails: 'Helper Details',
+    fromList: 'From List', manualEntry: 'Manual Entry',
+    searchHelper: 'Search Helper', searchHelperPh: 'Type name or employee ID',
+    supplierCompany: 'Supplier Company', supplierCompanyPh: 'Enter supplier / company name',
+    helperNameOptional: 'Helper Name (optional)', helperNamePh: 'Enter helper name if known',
+    vehicleOdo: 'Vehicle & Odometer',
+    vehicleNum: 'Vehicle Number', vehiclePh: 'Type to search vehicle',
+    startOdo: 'Start Odometer (km)', startOdoPh: 'e.g. 123456',
+    odoPhoto: 'Odometer Photo', cameraNote: 'Camera only — file upload not allowed',
+    fuelTaken: 'Fuel Taken', fuelPh: 'e.g. 40L, Full, None',
+    shiftStartSection: 'Shift Start Time',
+    arrivalLabel: 'Arrival at Gate Date & Time',
+    routeInfo: 'Route & Drop Info',
+    destinationEmirate: 'Destination Emirate', destinationEmiratePh: '-- Select Emirate --',
+    primaryCustomer: 'Primary Customer Name', primaryCustomerPh: 'Search customer name',
+    totalDrops: 'Total Drops', totalDropsPh: 'e.g. 25',
+    saveContinue: 'Save & Continue to Stage 2',
+    s1Saved: 'Stage 1 saved! Complete this step when leaving the warehouse.',
+    confirmIdentity: 'Confirm Your Identity',
+    searchYourName: 'Search Your Name',
+    stage1Note: 'Only drivers who completed Stage 1 today are shown.',
+    driverLabel: 'Driver', helperLabel: 'Helper', vehicleLabel: 'Vehicle', arrivedAt: 'Arrived at',
+    departureLabel: 'Departure Date & Time',
+    recordDeparture: 'Confirm Departure',
+    selectDriver: 'Select Driver',
+    eosDriverNote: 'All drivers with an active shift are shown (including those who skipped Stage 2).',
+    eos4DriverNote: 'Drivers who completed Stage 3 are shown here.',
+    refreshList: 'Refresh list',
+    dropDetails: 'Drop Details',
+    lastDrop: 'Last Drop Date & Time',
+    lastDropPhoto: 'Last Drop Odometer Photo',
+    saveLastDrop: 'Save Last Drop',
+    failedDrops: 'Number of Failed Drops',
+    endOdoSection: 'End Odometer & Photo',
+    endOdo: 'End Odometer (km)', endOdoPh: 'e.g. 124500',
+    shiftCompleteSection: 'Shift Complete Time',
+    shiftComplete: 'Shift Complete Date & Time',
+    completeShift: 'Complete Shift',
+    backHome: 'Back to Home',
+    incompleteShiftError: 'You have an incomplete shift from {date}. Please complete {stage} before starting a new shift.',
+    stuckStage2Label: 'Stage 2 (Departure)',
+    stuckStage3Label: 'Stage 3 (Last Drop)',
+    stuckStage4Label: 'Stage 4 (Shift Complete)'
+  },
+  hi: {
+    appTitle: 'RSA ड्राइवर ऐप',
+    brand: 'RSA ट्रांसपोर्ट',
+    homeSubtitle: 'शिफ्ट प्रबंधन प्रणाली',
+    card1Title: 'गोदाम पर पहुंचे',
+    card1Sub: 'चरण 1 — शिफ्ट और ओडोमीटर दर्ज करें',
+    card2Title: 'गोदाम छोड़ना',
+    card2Sub: 'चरण 2 — प्रस्थान समय दर्ज करें',
+    card3Title: 'अंतिम डिलीवरी',
+    card3Sub: 'चरण 3 — अंतिम डिलीवरी और ओडोमीटर फोटो',
+    card4Title: 'शिफ्ट पूर्ण',
+    card4Sub: 'चरण 4 — ओडोमीटर पढ़ाई और शिफ्ट बंद',
+    dashLink: 'ऑपरेशन डैशबोर्ड देखें',
+    timezone: 'समय क्षेत्र: एशिया/दुबई (UTC+4)',
+    s1Header: 'शिफ्ट शुरुआत',
+    s2Header: 'शिफ्ट शुरुआत — प्रस्थान',
+    eos3Header: 'अंतिम डिलीवरी — चरण 3',
+    eos4Header: 'शिफ्ट पूर्ण — चरण 4',
+    step1: 'गोदाम पर', step2: 'प्रस्थान',
+    driverDetails: 'ड्राइवर विवरण',
+    searchDriver: 'ड्राइवर', searchDriverPh: 'नाम या कर्मचारी ID खोजें',
+    helperDetails: 'सहायक विवरण',
+    fromList: 'सूची से', manualEntry: 'मैन्युअल दर्ज',
+    searchHelper: 'सहायक खोजें', searchHelperPh: 'नाम या ID टाइप करें',
+    supplierCompany: 'सप्लायर कंपनी', supplierCompanyPh: 'कंपनी का नाम दर्ज करें',
+    helperNameOptional: 'सहायक नाम (वैकल्पिक)', helperNamePh: 'सहायक का नाम दर्ज करें',
+    vehicleOdo: 'वाहन और ओडोमीटर',
+    vehicleNum: 'वाहन नंबर', vehiclePh: 'वाहन खोजें',
+    startOdo: 'शुरुआती ओडोमीटर (km)', startOdoPh: 'उदा. 123456',
+    odoPhoto: 'ओडोमीटर फोटो', cameraNote: 'केवल कैमरा — फ़ाइल अपलोड की अनुमति नहीं',
+    fuelTaken: 'ईंधन लिया', fuelPh: 'उदा. 40L, पूर्ण, कोई नहीं',
+    shiftStartSection: 'शिफ्ट शुरू समय',
+    arrivalLabel: 'गेट पर पहुंचने की तारीख और समय',
+    routeInfo: 'रूट और डिलीवरी जानकारी',
+    destinationEmirate: 'गंतव्य अमीरात', destinationEmiratePh: '-- अमीरात चुनें --',
+    primaryCustomer: 'मुख्य ग्राहक का नाम', primaryCustomerPh: 'ग्राहक खोजें',
+    totalDrops: 'कुल डिलीवरी', totalDropsPh: 'उदा. 25',
+    saveContinue: 'सहेजें और चरण 2 पर जाएं',
+    s1Saved: 'चरण 1 सहेजा गया! गोदाम छोड़ते समय यह चरण पूरा करें।',
+    confirmIdentity: 'अपनी पहचान सत्यापित करें',
+    searchYourName: 'अपना नाम खोजें',
+    stage1Note: 'केवल वे ड्राइवर दिखाए जाते हैं जिन्होंने आज चरण 1 पूरा किया।',
+    driverLabel: 'ड्राइवर', helperLabel: 'सहायक', vehicleLabel: 'वाहन', arrivedAt: 'पहुंचे',
+    departureLabel: 'प्रस्थान तारीख और समय',
+    recordDeparture: 'प्रस्थान दर्ज करें',
+    selectDriver: 'ड्राइवर चुनें',
+    eosDriverNote: 'सक्रिय शिफ्ट वाले सभी ड्राइवर दिखाए जाते हैं।',
+    eos4DriverNote: 'चरण 3 पूरा करने वाले ड्राइवर दिखाए जाते हैं।',
+    refreshList: 'सूची रीफ्रेश करें',
+    dropDetails: 'डिलीवरी विवरण',
+    lastDrop: 'अंतिम डिलीवरी तारीख और समय',
+    lastDropPhoto: 'अंतिम डिलीवरी ओडोमीटर फोटो',
+    saveLastDrop: 'अंतिम डिलीवरी सहेजें',
+    failedDrops: 'विफल डिलीवरी की संख्या',
+    endOdoSection: 'अंतिम ओडोमीटर और फोटो',
+    endOdo: 'अंतिम ओडोमीटर (km)', endOdoPh: 'उदा. 124500',
+    shiftCompleteSection: 'शिफ्ट समाप्ति समय',
+    shiftComplete: 'शिफ्ट समाप्ति तारीख और समय',
+    completeShift: 'शिफ्ट पूरी करें',
+    backHome: 'होम पर वापस जाएं',
+    incompleteShiftError: '{date} की शिफ्ट अधूरी है। नई शिफ्ट शुरू करने से पहले {stage} पूरी करें।',
+    stuckStage2Label: 'चरण 2 (प्रस्थान)',
+    stuckStage3Label: 'चरण 3 (अंतिम डिलीवरी)',
+    stuckStage4Label: 'चरण 4 (शिफ्ट पूर्ण)'
+  },
+  ar: {
+    appTitle: 'تطبيق RSA للسائق',
+    brand: 'RSA للنقل',
+    homeSubtitle: 'نظام إدارة المناوبات',
+    card1Title: 'وصل إلى المستودع',
+    card1Sub: 'المرحلة 1 — سجل وردتك والعداد',
+    card2Title: 'مغادرة المستودع',
+    card2Sub: 'المرحلة 2 — سجل وقت المغادرة',
+    card3Title: 'آخر توصيل',
+    card3Sub: 'المرحلة 3 — سجل آخر توصيل وصورة العداد',
+    card4Title: 'إنهاء الوردة',
+    card4Sub: 'المرحلة 4 — قراءة العداد وإغلاق الوردة',
+    dashLink: 'عرض لوحة العمليات',
+    timezone: 'المنطقة الزمنية: آسيا/دبي (UTC+4)',
+    s1Header: 'بداية الوردة',
+    s2Header: 'بداية الوردة — المغادرة',
+    eos3Header: 'آخر توصيل — المرحلة 3',
+    eos4Header: 'إنهاء الوردة — المرحلة 4',
+    step1: 'في المستودع', step2: 'المغادرة',
+    driverDetails: 'تفاصيل السائق',
+    searchDriver: 'السائق', searchDriverPh: 'ابحث بالاسم أو رقم الموظف',
+    helperDetails: 'تفاصيل المساعد',
+    fromList: 'من القائمة', manualEntry: 'إدخال يدوي',
+    searchHelper: 'ابحث عن مساعد', searchHelperPh: 'اكتب الاسم أو رقم الهوية',
+    supplierCompany: 'شركة المورد', supplierCompanyPh: 'أدخل اسم الشركة',
+    helperNameOptional: 'اسم المساعد (اختياري)', helperNamePh: 'أدخل اسم المساعد إن عُرف',
+    vehicleOdo: 'المركبة والعداد',
+    vehicleNum: 'رقم المركبة', vehiclePh: 'ابحث عن المركبة',
+    startOdo: 'عداد البداية (كم)', startOdoPh: 'مثال: 123456',
+    odoPhoto: 'صورة العداد', cameraNote: 'الكاميرا فقط — رفع الملفات غير مسموح',
+    fuelTaken: 'الوقود المأخوذ', fuelPh: 'مثال: 40L، ممتلئ، لا شيء',
+    shiftStartSection: 'وقت بدء الوردة',
+    arrivalLabel: 'تاريخ ووقت الوصول إلى البوابة',
+    routeInfo: 'معلومات المسار والتوصيل',
+    destinationEmirate: 'الإمارة المقصودة', destinationEmiratePh: '-- اختر الإمارة --',
+    primaryCustomer: 'اسم العميل الرئيسي', primaryCustomerPh: 'ابحث عن العميل',
+    totalDrops: 'إجمالي التوصيلات', totalDropsPh: 'مثال: 25',
+    saveContinue: 'حفظ والمتابعة للمرحلة 2',
+    s1Saved: 'تم حفظ المرحلة 1! أكمل هذه الخطوة عند مغادرة المستودع.',
+    confirmIdentity: 'تأكيد هويتك',
+    searchYourName: 'ابحث عن اسمك',
+    stage1Note: 'يُعرض السائقون الذين أكملوا المرحلة 1 اليوم فقط.',
+    driverLabel: 'السائق', helperLabel: 'المساعد', vehicleLabel: 'المركبة', arrivedAt: 'وصل في',
+    departureLabel: 'تاريخ ووقت المغادرة',
+    recordDeparture: 'تسجيل المغادرة',
+    selectDriver: 'اختر السائق',
+    eosDriverNote: 'يُعرض جميع السائقين ذوي الوردات النشطة.',
+    eos4DriverNote: 'يُعرض السائقون الذين أكملوا المرحلة 3.',
+    refreshList: 'تحديث القائمة',
+    dropDetails: 'تفاصيل التوصيل',
+    lastDrop: 'تاريخ ووقت آخر توصيل',
+    lastDropPhoto: 'صورة عداد آخر توصيل',
+    saveLastDrop: 'حفظ آخر توصيل',
+    failedDrops: 'عدد التوصيلات الفاشلة',
+    endOdoSection: 'عداد النهاية والصورة',
+    endOdo: 'عداد النهاية (كم)', endOdoPh: 'مثال: 124500',
+    shiftCompleteSection: 'وقت إنهاء الوردة',
+    shiftComplete: 'تاريخ ووقت اكتمال الوردة',
+    completeShift: 'إنهاء الوردة',
+    backHome: 'العودة إلى الرئيسية',
+    incompleteShiftError: 'لديك وردة غير مكتملة بتاريخ {date}. يرجى إكمال {stage} قبل بدء وردة جديدة.',
+    stuckStage2Label: 'المرحلة 2 (المغادرة)',
+    stuckStage3Label: 'المرحلة 3 (آخر توصيل)',
+    stuckStage4Label: 'المرحلة 4 (إنهاء الوردة)'
+  },
+  ur: {
+    appTitle: 'ڈرائیور حاضری',
+    brand: 'RSA ٹرانسپورٹ',
+    homeSubtitle: 'شفٹ مینجمنٹ سسٹم',
+    card1Title: 'گودام پر پہنچے',
+    card1Sub: 'مرحلہ 1 — اپنی شفٹ اور اوڈومیٹر درج کریں',
+    card2Title: 'گودام چھوڑنا',
+    card2Sub: 'مرحلہ 2 — روانگی کا وقت درج کریں',
+    card3Title: 'آخری ڈیلیوری',
+    card3Sub: 'مرحلہ 3 — آخری ڈیلیوری اور اوڈومیٹر فوٹو',
+    card4Title: 'شفٹ مکمل',
+    card4Sub: 'مرحلہ 4 — اوڈومیٹر ریڈنگ اور شفٹ بند',
+    dashLink: 'آپریشن ڈیش بورڈ دیکھیں',
+    timezone: 'ٹائم زون: ایشیا/دبئی (UTC+4)',
+    s1Header: 'شفٹ کا آغاز',
+    s2Header: 'شفٹ کا آغاز — روانگی',
+    eos3Header: 'آخری ڈیلیوری — مرحلہ 3',
+    eos4Header: 'شفٹ مکمل — مرحلہ 4',
+    step1: 'گودام میں', step2: 'روانگی',
+    driverDetails: 'ڈرائیور کی تفصیل',
+    searchDriver: 'ڈرائیور', searchDriverPh: 'نام یا ملازم ID سے تلاش کریں',
+    helperDetails: 'مددگار کی تفصیل',
+    fromList: 'فہرست سے', manualEntry: 'دستی اندراج',
+    searchHelper: 'مددگار تلاش کریں', searchHelperPh: 'نام یا ID لکھیں',
+    supplierCompany: 'سپلائر کمپنی', supplierCompanyPh: 'کمپنی کا نام درج کریں',
+    helperNameOptional: 'مددگار کا نام (اختیاری)', helperNamePh: 'مددگار کا نام درج کریں',
+    vehicleOdo: 'گاڑی اور اوڈومیٹر',
+    vehicleNum: 'گاڑی نمبر', vehiclePh: 'گاڑی تلاش کریں',
+    startOdo: 'ابتدائی اوڈومیٹر (km)', startOdoPh: 'مثال: 123456',
+    odoPhoto: 'اوڈومیٹر فوٹو', cameraNote: 'صرف کیمرہ — فائل اپلوڈ کی اجازت نہیں',
+    fuelTaken: 'ایندھن لیا', fuelPh: 'مثال: 40L، پورا، کچھ نہیں',
+    shiftStartSection: 'شفٹ شروع ہونے کا وقت',
+    arrivalLabel: 'گیٹ پر پہنچنے کی تاریخ اور وقت',
+    routeInfo: 'روٹ اور ڈیلیوری معلومات',
+    destinationEmirate: 'منزل کا امارت', destinationEmiratePh: '-- امارت منتخب کریں --',
+    primaryCustomer: 'بنیادی گاہک کا نام', primaryCustomerPh: 'گاہک تلاش کریں',
+    totalDrops: 'کل ڈیلیوریاں', totalDropsPh: 'مثال: 25',
+    saveContinue: 'محفوظ کریں اور مرحلہ 2 پر جائیں',
+    s1Saved: 'مرحلہ 1 محفوظ ہوگیا! گودام چھوڑتے وقت یہ مرحلہ مکمل کریں۔',
+    confirmIdentity: 'اپنی شناخت کی تصدیق کریں',
+    searchYourName: 'اپنا نام تلاش کریں',
+    stage1Note: 'صرف وہ ڈرائیور دکھائے جاتے ہیں جنہوں نے آج مرحلہ 1 مکمل کیا۔',
+    driverLabel: 'ڈرائیور', helperLabel: 'مددگار', vehicleLabel: 'گاڑی', arrivedAt: 'پہنچے',
+    departureLabel: 'روانگی کی تاریخ اور وقت',
+    recordDeparture: 'روانگی درج کریں',
+    selectDriver: 'ڈرائیور منتخب کریں',
+    eosDriverNote: 'تمام فعال شفٹ والے ڈرائیور دکھائے جاتے ہیں۔',
+    eos4DriverNote: 'مرحلہ 3 مکمل کرنے والے ڈرائیور دکھائے جاتے ہیں۔',
+    refreshList: 'فہرست تازہ کریں',
+    dropDetails: 'ڈیلیوری کی تفصیل',
+    lastDrop: 'آخری ڈیلیوری کی تاریخ اور وقت',
+    lastDropPhoto: 'آخری ڈیلیوری اوڈومیٹر فوٹو',
+    saveLastDrop: 'آخری ڈیلیوری محفوظ کریں',
+    failedDrops: 'ناکام ڈیلیوری کی تعداد',
+    endOdoSection: 'آخری اوڈومیٹر اور فوٹو',
+    endOdo: 'آخری اوڈومیٹر (km)', endOdoPh: 'مثال: 124500',
+    shiftCompleteSection: 'شفٹ ختم ہونے کا وقت',
+    shiftComplete: 'شفٹ مکمل ہونے کی تاریخ اور وقت',
+    completeShift: 'شفٹ مکمل کریں',
+    backHome: 'ہوم پر واپس جائیں',
+    incompleteShiftError: '{date} کی شفٹ نامکمل ہے۔ نئی شفٹ شروع کرنے سے پہلے {stage} مکمل کریں۔',
+    stuckStage2Label: 'مرحلہ 2 (روانگی)',
+    stuckStage3Label: 'مرحلہ 3 (آخری ڈیلیوری)',
+    stuckStage4Label: 'مرحلہ 4 (شفٹ مکمل)'
+  }
+};
+
+var currentLang = 'en';
+
+function t(key) {
+  return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) ||
+         (TRANSLATIONS['en'] && TRANSLATIONS['en'][key]) || key;
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  document.documentElement.setAttribute('dir', (lang === 'ar' || lang === 'ur') ? 'rtl' : 'ltr');
+  // Update active state on lang buttons
+  var labels = { en: 'EN', hi: 'हिं', ar: 'عر', ur: 'اُر' };
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.trim() === labels[lang]);
+  });
+  // Update all data-i18n text
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  // Update all data-i18n-placeholder attributes
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+}
+
+// =============================================================================
 // STATE
 // =============================================================================
 var state = {
-  drivers:       APP_DATA.drivers  || [],
-  helpers:       APP_DATA.helpers  || [],
-  vehicles:      APP_DATA.vehicles || [],
+  drivers:       APP_DATA.drivers       || [],
+  helpers:       APP_DATA.helpers       || [],
+  vehicles:      APP_DATA.vehicles      || [],
+  destinations:  APP_DATA.destinations  || [],
+  customers:     APP_DATA.customers     || [],
   activeDrivers: [],
-  stage1Drivers: [],   // drivers who have stage 1 done (from server or current session)
+  stage1Drivers: [],   // drivers who completed Stage 1 today
+  stage3Drivers: [],   // drivers who completed Stage 3 (eligible for Stage 4)
   currentRowId:  null,
-  selectedEosDriver: null,
-  capturedPhotos: { start: null, end: null },
-  cameraStreams:  { start: null, end: null },
+  selectedEos3Driver: null,
+  selectedEos4Driver: null,
+  capturedPhotos: { start: null, lastDrop: null, end: null },
+  cameraStreams:  { start: null, lastDrop: null, end: null },
   helperMode: 'search'  // 'search' | 'manual'
 };
 
@@ -1326,6 +2026,31 @@ var state = {
 // HELPER UTILITIES
 // =============================================================================
 function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+// Read value from a custom dt-picker widget as 'YYYY-MM-DDTHH:MM'
+function getDtVal(baseId) {
+  var d = document.getElementById(baseId + '-d');
+  var h = document.getElementById(baseId + '-h');
+  var m = document.getElementById(baseId + '-m');
+  if (!d || !h || !m || !d.value) return '';
+  return d.value + 'T' + h.value + ':' + m.value;
+}
+
+// Write a 'YYYY-MM-DDTHH:MM' string into a custom dt-picker widget
+function setDtVal(baseId, isoStr) {
+  var d = document.getElementById(baseId + '-d');
+  var h = document.getElementById(baseId + '-h');
+  var m = document.getElementById(baseId + '-m');
+  if (!d || !h || !m) return;
+  if (!isoStr) { d.value = ''; h.value = '00'; m.value = '00'; return; }
+  var parts = isoStr.split('T');
+  d.value = parts[0] || '';
+  if (parts[1]) {
+    var tp = parts[1].split(':');
+    h.value = tp[0] ? tp[0].substring(0, 2) : '00';
+    m.value = tp[1] ? tp[1].substring(0, 2) : '00';
+  }
+}
 
 // Returns current Dubai time as 'YYYY-MM-DDTHH:MM' for datetime-local inputs
 function getDubaiNowLocalString() {
@@ -1372,7 +2097,8 @@ function toggleHelperMode(mode) {
 // NAVIGATION
 // =============================================================================
 function navigate(screen) {
-  var all = ['screen-home','screen-sos-stage1','screen-sos-stage2','screen-eos','screen-success','dashboard-app'];
+  var all = ['screen-home','screen-sos-stage1','screen-sos-stage2',
+             'screen-eos-stage3','screen-eos-stage4','screen-success','dashboard-app'];
   all.forEach(function(id) { document.getElementById(id).classList.add('hidden'); });
 
   if (screen === 'home') {
@@ -1381,7 +2107,6 @@ function navigate(screen) {
     stopAllCameras();
   } else if (screen === 'sos-stage1') {
     document.getElementById('screen-sos-stage1').classList.remove('hidden');
-    setTimeout(function() { startCamera('start'); }, 100);
   } else if (screen === 'sos-stage2') {
     document.getElementById('screen-sos-stage2').classList.remove('hidden');
     stopCamera('start');
@@ -1390,33 +2115,37 @@ function navigate(screen) {
     document.getElementById('sos2-confirm-details').classList.add('hidden');
     state.currentRowId = null;
     loadStage1PendingDrivers();
-  } else if (screen === 'eos') {
-    document.getElementById('screen-eos').classList.remove('hidden');
-    document.getElementById('eos-form').classList.add('hidden');
-    state.selectedEosDriver = null;
-    document.getElementById('eos-driver-search').value = '';
+  } else if (screen === 'eos-stage3') {
+    document.getElementById('screen-eos-stage3').classList.remove('hidden');
+    document.getElementById('eos3-form').classList.add('hidden');
+    state.selectedEos3Driver = null;
+    document.getElementById('eos3-driver-search').value = '';
     stopCamera('end');
     loadActiveDrivers();
+  } else if (screen === 'eos-stage4') {
+    document.getElementById('screen-eos-stage4').classList.remove('hidden');
+    document.getElementById('eos4-form').classList.add('hidden');
+    state.selectedEos4Driver = null;
+    document.getElementById('eos4-driver-search').value = '';
+    stopCamera('lastDrop');
+    loadStage3Drivers();
   } else if (screen === 'success') {
     document.getElementById('screen-success').classList.remove('hidden');
     stopAllCameras();
   } else if (screen === 'dashboard') {
+    document.getElementById('driver-app').classList.add('hidden');
     document.getElementById('dashboard-app').classList.remove('hidden');
     loadDashboard();
+  }
+
+  // When leaving dashboard back to driver app screens, make driver-app visible again
+  if (screen !== 'dashboard') {
+    document.getElementById('driver-app').classList.remove('hidden');
   }
 }
 
 function openDashboard() {
-  // APP_DEPLOYMENT_URL is the real /exec URL embedded by doGet() server-side.
-  // We must NOT use window.location.href here — inside the GAS sandbox that gives
-  // a googleusercontent.com URL which does not re-run doGet(), so ?view=dashboard
-  // would be ignored and the dashboard would appear blank.
-  var base = APP_DEPLOYMENT_URL || '';
-  if (!base) {
-    showToast('Dashboard URL not available. Please redeploy the web app.', 'error');
-    return;
-  }
-  window.open(base + '?view=dashboard', '_blank');
+  navigate('dashboard');
 }
 
 // =============================================================================
@@ -1444,9 +2173,13 @@ function doAutocomplete(inputEl, dataKey, onSelect) {
     results = data.filter(function(v) {
       return v.number.toLowerCase().includes(query);
     });
-  } else if (dataKey === 'activeDrivers') {
+  } else if (dataKey === 'activeDrivers' || dataKey === 'stage3Drivers') {
     results = data.filter(function(d) {
       return d.driverName.toLowerCase().includes(query) || d.driverId.toLowerCase().includes(query);
+    });
+  } else if (dataKey === 'customers') {
+    results = data.filter(function(c) {
+      return c.name.toLowerCase().includes(query);
     });
   }
 
@@ -1485,8 +2218,11 @@ function buildAcLabel(dataKey, item) {
   if (dataKey === 'vehicles') {
     return '<strong>' + esc(item.number) + '</strong>';
   }
-  if (dataKey === 'activeDrivers') {
+  if (dataKey === 'activeDrivers' || dataKey === 'stage3Drivers') {
     return '<strong>' + esc(item.driverName) + '</strong><div class="ac-sub">' + esc(item.driverId) + ' &bull; ' + esc(item.vehicleNumber) + '</div>';
+  }
+  if (dataKey === 'customers') {
+    return '<strong>' + esc(item.name) + '</strong>';
   }
   return '';
 }
@@ -1495,7 +2231,8 @@ function getAcInputValue(dataKey, item) {
   if (dataKey === 'drivers' || dataKey === 'stage1Drivers') return item.name + ' (' + item.id + ')';
   if (dataKey === 'helpers')      return item.name + ' (' + item.id + ')';
   if (dataKey === 'vehicles')     return item.number;
-  if (dataKey === 'activeDrivers') return item.driverName + ' (' + item.driverId + ')';
+  if (dataKey === 'activeDrivers' || dataKey === 'stage3Drivers') return item.driverName + ' (' + item.driverId + ')';
+  if (dataKey === 'customers') return item.name;
   return '';
 }
 
@@ -1544,6 +2281,23 @@ function onDriverSelect(driver) {
   document.getElementById('sos1-driver-id').value   = driver.id;
   document.getElementById('sos1-driver-name').value = driver.name;
   state._selectedDriver = driver;
+
+  // Show chip, hide search area
+  document.getElementById('sos1-chip-name').textContent = driver.name;
+  document.getElementById('sos1-chip-id').textContent   = driver.id;
+  document.getElementById('sos1-driver-chip').classList.remove('hidden');
+  document.getElementById('sos1-driver-search-area').classList.add('hidden');
+  document.getElementById('sos1-driver-list').classList.add('hidden');
+}
+
+function clearDriverSelection() {
+  document.getElementById('sos1-driver-id').value   = '';
+  document.getElementById('sos1-driver-name').value = '';
+  state._selectedDriver = null;
+
+  document.getElementById('sos1-driver-chip').classList.add('hidden');
+  document.getElementById('sos1-driver-search-area').classList.remove('hidden');
+  document.getElementById('sos1-driver-search').value = '';
 }
 
 function onHelperSelect(helper) {
@@ -1567,25 +2321,40 @@ function onStage2DriverSelect(driver) {
   document.getElementById('sos2-confirm-details').classList.remove('hidden');
 }
 
-function onEosDriverSelect(driver) {
-  state.selectedEosDriver = driver;
+function onCustomerSelect(customer) {
+  document.getElementById('sos1-customer-name').value = customer.name;
+}
 
-  // Reset EOS form fields before showing (prevents stale data from previous selection)
-  ['eos-last-drop','eos-odometer','eos-shift-complete'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  var failedEl = document.getElementById('eos-failed-drops');
-  if (failedEl) failedEl.value = '0';
+function onEos3DriverSelect(driver) {
+  state.selectedEos3Driver = driver;
+
+  // Reset Stage 3 form fields
+  setDtVal('eos3-last-drop', '');
+  var fd = document.getElementById('eos3-failed-drops');
+  if (fd) fd.value = '0';
+  state.capturedPhotos.lastDrop = null;
+  var resultEl = document.getElementById('photo-result-lastDrop');
+  var wrapEl   = document.getElementById('camera-wrapper-lastDrop');
+  if (resultEl) resultEl.classList.add('hidden');
+  if (wrapEl)   wrapEl.classList.remove('hidden');
+
+  document.getElementById('eos3-form').classList.remove('hidden');
+}
+
+function onEos4DriverSelect(driver) {
+  state.selectedEos4Driver = driver;
+
+  // Reset Stage 4 form fields
+  var odo = document.getElementById('eos4-odometer');
+  if (odo) odo.value = '';
+  setDtVal('eos4-shift-complete', getDubaiNowLocalString());
   state.capturedPhotos.end = null;
   var resultEl = document.getElementById('photo-result-end');
   var wrapEl   = document.getElementById('camera-wrapper-end');
   if (resultEl) resultEl.classList.add('hidden');
   if (wrapEl)   wrapEl.classList.remove('hidden');
 
-  document.getElementById('eos-form').classList.remove('hidden');
-  // Start camera for end odometer
-  setTimeout(function() { startCamera('end'); }, 100);
+  document.getElementById('eos4-form').classList.remove('hidden');
 }
 
 // =============================================================================
@@ -1616,7 +2385,7 @@ function loadStage1PendingDrivers() {
 }
 
 function loadActiveDrivers() {
-  var loadingEl = document.getElementById('eos-loading-drivers');
+  var loadingEl = document.getElementById('eos3-loading-drivers');
   if (loadingEl) loadingEl.classList.remove('hidden');
 
   callServer('getActiveDriversForEndShift', [],
@@ -1631,10 +2400,29 @@ function loadActiveDrivers() {
   );
 }
 
+function loadStage3Drivers() {
+  var loadingEl = document.getElementById('eos4-loading-drivers');
+  if (loadingEl) loadingEl.classList.remove('hidden');
+
+  callServer('getStage3PendingDrivers', [],
+    function(result) {
+      state.stage3Drivers = result || [];
+      if (loadingEl) loadingEl.classList.add('hidden');
+    },
+    function(err) {
+      if (loadingEl) loadingEl.classList.add('hidden');
+      showToast('Could not load drivers: ' + err, 'error');
+    }
+  );
+}
+
 // =============================================================================
 // CAMERA MODULE
 // =============================================================================
 function startCamera(slot) {
+  // Stop any existing stream for this slot before requesting a new one
+  stopCamera(slot);
+
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showCameraError(slot, 'Camera not supported. Please use Chrome or Safari.');
     return;
@@ -1646,32 +2434,59 @@ function startCamera(slot) {
   document.getElementById(wrapId).classList.remove('hidden');
   document.getElementById('photo-result-' + slot).classList.add('hidden');
 
+  // Remove any existing error div so we start fresh
+  var existingErr = document.getElementById('camera-error-' + slot);
+  if (existingErr) existingErr.remove();
+
+  var assignStream = function(stream) {
+    var video = document.getElementById(vidId);
+    if (!video) { stream.getTracks().forEach(function(t){t.stop();}); return; }
+    video.srcObject = stream;
+    state.cameraStreams[slot] = stream;
+  };
+
+  // First try: prefer rear camera
   navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
     audio: false
-  }).then(function(stream) {
-    var video = document.getElementById(vidId);
-    video.srcObject = stream;
-    state.cameraStreams[slot] = stream;
+  }).then(assignStream).catch(function(err) {
+    // Fallback: try any camera if facingMode caused the failure
+    if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError' || err.name === 'NotReadableError') {
+      return navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(assignStream);
+    }
+    throw err;
   }).catch(function(err) {
-    var msg = err.name === 'NotAllowedError'
-      ? 'Camera permission denied. Please allow camera access in your browser settings.'
-      : 'Could not access camera: ' + err.message;
+    var msg;
+    if (err.name === 'NotAllowedError') {
+      msg = 'Camera blocked by browser. In Chrome, tap the lock icon (🔒) in the address bar → Site settings → Camera → Allow. Then tap Retry.';
+    } else if (err.name === 'NotFoundError') {
+      msg = 'No camera found on this device.';
+    } else {
+      msg = 'Could not access camera: ' + err.message;
+    }
     showCameraError(slot, msg);
   });
 }
 
 function showCameraError(slot, msg) {
-  var areaId  = 'camera-area-' + slot;
-  var areaEl  = document.getElementById(areaId);
-  var wrapEl  = document.getElementById('camera-wrapper-' + slot);
+  var areaId = 'camera-area-' + slot;
+  var areaEl = document.getElementById(areaId);
+  var wrapEl = document.getElementById('camera-wrapper-' + slot);
   if (wrapEl) wrapEl.classList.add('hidden');
+
+  // Remove old error if present
+  var old = document.getElementById('camera-error-' + slot);
+  if (old) old.remove();
 
   var errDiv = document.createElement('div');
   errDiv.className = 'camera-error';
   errDiv.id = 'camera-error-' + slot;
-  errDiv.innerHTML = '<span class="material-icons">no_photography</span><span>' + esc(msg) + '</span>';
-  if (areaEl && !document.getElementById('camera-error-' + slot)) {
+  errDiv.innerHTML = '<span class="material-icons">no_photography</span>'
+    + '<span>' + esc(msg) + '</span>'
+    + '<button class="btn btn-secondary" style="margin-top:10px;font-size:14px" type="button"'
+    + ' onclick="retakePhoto(\'' + slot + '\')">'
+    + '<span class="material-icons" style="font-size:16px">refresh</span> Retry Camera</button>';
+  if (areaEl) {
     areaEl.appendChild(errDiv);
   }
 }
@@ -1702,12 +2517,33 @@ function retakePhoto(slot) {
   state.capturedPhotos[slot] = null;
   document.getElementById('photo-result-' + slot).classList.add('hidden');
   document.getElementById('camera-wrapper-' + slot).classList.remove('hidden');
+  var input = document.getElementById('camera-input-' + slot);
+  if (input) input.value = '';
+}
 
-  // Remove old error if any
-  var errEl = document.getElementById('camera-error-' + slot);
-  if (errEl) errEl.remove();
-
-  startCamera(slot);
+function onPhotoSelected(slot, input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var MAX = 1280;
+      var w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      state.capturedPhotos[slot] = dataUrl;
+      document.getElementById('photo-img-' + slot).src = dataUrl;
+      document.getElementById('photo-result-' + slot).classList.remove('hidden');
+      document.getElementById('camera-wrapper-' + slot).classList.add('hidden');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function stopCamera(slot) {
@@ -1719,6 +2555,7 @@ function stopCamera(slot) {
 
 function stopAllCameras() {
   stopCamera('start');
+  stopCamera('lastDrop');
   stopCamera('end');
 }
 
@@ -1731,7 +2568,7 @@ function submitStage1() {
   var vehicleNum    = val('sos1-vehicle-number');
   var odometer      = val('sos1-odometer');
   var fuel          = val('sos1-fuel');
-  var shiftStartTime = val('sos1-shift-start-time');
+  var shiftStartTime = getDtVal('sos1-shift-start-time');
   var photo         = state.capturedPhotos.start;
 
   // Resolve helper fields based on mode
@@ -1751,26 +2588,36 @@ function submitStage1() {
     if (!helperCo) { showToast('Please enter the supplier / company name for the helper.', 'error'); return; }
   }
 
+  var destination = val('sos1-destination');
+  var customer    = val('sos1-customer-name');
+  var totalDrops  = val('sos1-total-drops');
+
   if (!driverId || !driverName) { showToast('Please select a driver.', 'error'); return; }
   if (!vehicleNum) { showToast('Please select a vehicle.', 'error'); return; }
   if (!odometer || Number(odometer) < 0) { showToast('Please enter a valid start odometer reading.', 'error'); return; }
   if (!photo) { showToast('Odometer photo is mandatory. Please take a photo.', 'error'); return; }
   if (!shiftStartTime) { showToast('Please enter the shift start date & time.', 'error'); return; }
+  if (!destination) { showToast('Please select the destination emirate.', 'error'); return; }
+  if (!customer) { showToast('Please select the primary customer name.', 'error'); return; }
+  if (totalDrops === '' || Number(totalDrops) < 0) { showToast('Please enter total drops.', 'error'); return; }
 
   disableBtn('btn-sos1-submit');
   showLoading('Saving shift start...');
 
   callServer('saveShiftStart', [{
-    driverId:         driverId,
-    driverName:       driverName,
-    helperId:         helperId,
-    helperName:       helperName,
-    helperCompany:    helperCo,
-    vehicleNumber:    vehicleNum,
-    startOdometer:    Number(odometer),
-    startPhotoBase64: photo,
-    fuelTaken:        fuel,
-    shiftStartTime:   shiftStartTime
+    driverId:           driverId,
+    driverName:         driverName,
+    helperId:           helperId,
+    helperName:         helperName,
+    helperCompany:      helperCo,
+    vehicleNumber:      vehicleNum,
+    startOdometer:      Number(odometer),
+    startPhotoBase64:   photo,
+    fuelTaken:          fuel,
+    shiftStartTime:     shiftStartTime,
+    destinationEmirate: destination,
+    primaryCustomer:    customer,
+    totalDrops:         Number(totalDrops)
   }],
   function(result) {
     hideLoading();
@@ -1785,7 +2632,15 @@ function submitStage1() {
       });
       navigate('sos-stage2');
     } else {
-      showToast((result && result.error) || 'Failed to save. Please try again.', 'error');
+      var msg = (result && result.error) || 'Failed to save. Please try again.';
+      // If server returned a structured incomplete-shift error, render in user's language
+      if (result && result.incompleteShiftStageNum) {
+        var stageKey = 'stuckStage' + result.incompleteShiftStageNum + 'Label';
+        msg = t('incompleteShiftError')
+          .replace('{date}', result.incompleteShiftDate || '')
+          .replace('{stage}', t(stageKey));
+      }
+      showToast(msg, 'error');
     }
   },
   function(err) {
@@ -1798,7 +2653,7 @@ function submitStage1() {
 function submitStage2() {
   if (!state.currentRowId) { showToast('Please select your name first.', 'error'); return; }
 
-  var departureTime = val('sos2-departure-time');
+  var departureTime = getDtVal('sos2-departure-time');
   if (!departureTime) { showToast('Please enter the departure date & time.', 'error'); return; }
 
   disableBtn('btn-sos2-submit');
@@ -1826,35 +2681,68 @@ function submitStage2() {
     });
 }
 
-function submitEos() {
-  var driver          = state.selectedEosDriver;
-  var lastDrop        = val('eos-last-drop');
-  var shiftCompleteTime = val('eos-shift-complete');
-  var odometer        = val('eos-odometer');
-  var failedDrops     = val('eos-failed-drops');
-  var photo           = state.capturedPhotos.end;
+function submitStage3() {
+  var driver      = state.selectedEos3Driver;
+  var lastDrop    = getDtVal('eos3-last-drop');
+  var failedDrops = val('eos3-failed-drops');
+  var photo       = state.capturedPhotos.lastDrop;
 
   if (!driver) { showToast('Please select your name.', 'error'); return; }
   if (!lastDrop) { showToast('Please enter last drop date & time.', 'error'); return; }
-  if (!shiftCompleteTime) { showToast('Please enter shift complete date & time.', 'error'); return; }
-  if (!odometer || Number(odometer) < 0) { showToast('Please enter a valid end odometer reading.', 'error'); return; }
-  if (!photo) { showToast('End odometer photo is mandatory.', 'error'); return; }
+  if (!photo) { showToast('Last drop odometer photo is mandatory. Please take a photo.', 'error'); return; }
   if (failedDrops === '' || Number(failedDrops) < 0) { showToast('Please enter number of failed drops.', 'error'); return; }
 
-  disableBtn('btn-eos-submit');
-  showLoading('Completing shift...');
+  disableBtn('btn-eos3-submit');
+  showLoading('Saving last drop...');
 
-  callServer('saveShiftEnd', [{
-    rowId:            driver.rowId,
-    lastDropTime:     lastDrop,
-    shiftCompleteTime: shiftCompleteTime,
-    endOdometer:      Number(odometer),
-    endPhotoBase64:   photo,
-    failedDrops:      Number(failedDrops)
+  callServer('saveLastDrop', [{
+    rowId:               driver.rowId,
+    lastDropTime:        lastDrop,
+    lastDropPhotoBase64: photo,
+    failedDrops:         Number(failedDrops)
   }],
   function(result) {
     hideLoading();
-    enableBtn('btn-eos-submit');
+    enableBtn('btn-eos3-submit');
+    if (result && result.success) {
+      stopCamera('lastDrop');
+      state.capturedPhotos.lastDrop = null;
+      state.selectedEos3Driver = null;
+      showSuccess('Stage 3 Saved!', 'Last drop recorded. Please go to Stage 4 to complete your shift.', null);
+    } else {
+      showToast((result && result.error) || 'Failed to save last drop.', 'error');
+    }
+  },
+  function(err) {
+    hideLoading();
+    enableBtn('btn-eos3-submit');
+    showToast('Server error: ' + err, 'error');
+  });
+}
+
+function submitStage4() {
+  var driver          = state.selectedEos4Driver;
+  var shiftCompleteTime = getDtVal('eos4-shift-complete');
+  var odometer        = val('eos4-odometer');
+  var photo           = state.capturedPhotos.end;
+
+  if (!driver) { showToast('Please select your name.', 'error'); return; }
+  if (!odometer || Number(odometer) < 0) { showToast('Please enter a valid end odometer reading.', 'error'); return; }
+  if (!photo) { showToast('End odometer photo is mandatory.', 'error'); return; }
+  if (!shiftCompleteTime) { showToast('Please enter shift complete date & time.', 'error'); return; }
+
+  disableBtn('btn-eos4-submit');
+  showLoading('Completing shift...');
+
+  callServer('saveShiftEnd', [{
+    rowId:             driver.rowId,
+    shiftCompleteTime: shiftCompleteTime,
+    endOdometer:       Number(odometer),
+    endPhotoBase64:    photo
+  }],
+  function(result) {
+    hideLoading();
+    enableBtn('btn-eos4-submit');
     if (result && result.success) {
       var statsMsg = result.shiftDuration
         ? 'Shift Duration: ' + result.shiftDuration + ' hrs' +
@@ -1862,14 +2750,14 @@ function submitEos() {
         : '';
       showSuccess('Shift Complete!', 'Your shift has been recorded.', statsMsg);
       state.capturedPhotos.end = null;
-      state.selectedEosDriver  = null;
+      state.selectedEos4Driver = null;
     } else {
       showToast((result && result.error) || 'Failed to complete shift.', 'error');
     }
   },
   function(err) {
     hideLoading();
-    enableBtn('btn-eos-submit');
+    enableBtn('btn-eos4-submit');
     showToast('Server error: ' + err, 'error');
   });
 }
@@ -1941,42 +2829,12 @@ function renderDashboard(data) {
 
   // Charts (guard against Chart.js CDN load failure)
   try { renderTrendChart(data.shiftTrendByDate || []); } catch(ce) { console.warn('Trend chart error:', ce); }
-  try { renderVehicleChart(data.vehicleRunTime || []); } catch(ce) { console.warn('Vehicle chart error:', ce); }
 
-  // Active drivers table
-  var activeDrivers = data.activeDrivers || [];
-  var activeBody = document.getElementById('tbody-active');
-  document.getElementById('active-count-badge').textContent = data.activeCount || 0;
-  if (!activeDrivers.length) {
-    activeBody.innerHTML = '<tr><td colspan="5" class="no-data"><span class="material-icons">person_off</span>No active drivers right now</td></tr>';
-  } else {
-    activeBody.innerHTML = activeDrivers.map(function(d) {
-      var rowClass = d.isOvertime ? 'class="overtime-row"' : '';
-      var badge    = d.isOvertime
-        ? '<span class="badge badge-overtime">OVERTIME</span>'
-        : '<span class="badge badge-ok">On Duty</span>';
-      var timeClass = 'running-time' + (d.isOvertime ? ' over' : '');
-      return '<tr ' + rowClass + '>' +
-        '<td>' + esc(d.driverName) + '</td>' +
-        '<td>' + esc(d.vehicleNumber) + '</td>' +
-        '<td>' + esc(d.departureTime) + '</td>' +
-        '<td class="' + timeClass + '">' + d.runningHours.toFixed(1) + ' hrs</td>' +
-        '<td>' + badge + '</td>' +
-        '</tr>';
-    }).join('');
-  }
-
-  // Punch-out misses
-  var punchMisses = data.punchOutMisses || [];
-  var missBody = document.getElementById('tbody-misses');
-  document.getElementById('miss-count-badge').textContent = punchMisses.length;
-  if (!punchMisses.length) {
-    missBody.innerHTML = '<tr><td colspan="3" class="no-data"><span class="material-icons">check_circle</span>No punch-out misses</td></tr>';
-  } else {
-    missBody.innerHTML = punchMisses.map(function(m) {
-      return '<tr><td>' + esc(m.shiftDate) + '</td><td>' + esc(m.driverName) + '</td><td>' + esc(m.vehicleNumber) + '</td></tr>';
-    }).join('');
-  }
+  // Active drivers, punch-out misses, failed drops, overtime
+  renderActiveDriversWithStages(data.activeDrivers || []);
+  renderPunchOutMisses(data.punchOutMisses || []);
+  renderFailedDropsTable(data.failedDropsByDate || []);
+  renderOvertimeTable(data.overtimeByDate || []);
 
   // Helper companies
   var topHelpers  = todayStats.topHelperCompanies || [];
@@ -1995,10 +2853,134 @@ function renderDashboard(data) {
     }).join('');
   }
 
+  // Set default date pickers to yesterday and auto-load detail data
+  var yesterday = getDubaiYesterdayString();
+  var vdp  = document.getElementById('vehicle-date-picker');
+  var stdp = document.getElementById('stage-timing-date-picker');
+  if (vdp  && !vdp.value)  vdp.value  = yesterday;
+  if (stdp && !stdp.value) stdp.value = yesterday;
+  loadDetailData(yesterday);
+
+  // Set default vehicle hours range: last 30 days
+  var vhTo   = document.getElementById('vhours-to-picker');
+  var vhFrom = document.getElementById('vhours-from-picker');
+  if (vhTo && vhFrom && !vhTo.value) {
+    var todayDubai = getDubaiTodayString();
+    var thirtyAgo  = getDubaiNDaysAgoString(30);
+    vhFrom.value = thirtyAgo;
+    vhTo.value   = todayDubai;
+    // Load vehicle hours for default range automatically
+    loadVehicleHours();
+  }
+
   } catch(renderErr) {
     console.error('Dashboard render error:', renderErr);
     showToast('Dashboard display error: ' + renderErr.message, 'error');
   }
+}
+
+function renderActiveDriversWithStages(activeDrivers) {
+  var stageBadgeClass = { 1: 'badge-stage1', 2: 'badge-stage2', 3: 'badge-stage3' };
+  var stageLabels     = { 1: 'Stage 1', 2: 'Stage 2', 3: 'Stage 3' };
+  var activeBody = document.getElementById('tbody-active');
+  document.getElementById('active-count-badge').textContent = activeDrivers.length;
+  if (!activeDrivers.length) {
+    activeBody.innerHTML = '<tr><td colspan="6" class="no-data"><span class="material-icons">person_off</span>No active drivers right now</td></tr>';
+    return;
+  }
+  activeBody.innerHTML = activeDrivers.map(function(d) {
+    var rowClass    = d.isOvertime ? 'class="overtime-row"' : '';
+    var stageBadge  = '<span class="badge ' + (stageBadgeClass[d.currentStage] || '') + '">' + (stageLabels[d.currentStage] || '') + '</span>';
+    var statusBadge = d.isOvertime
+      ? '<span class="badge badge-overtime">OVERTIME</span>'
+      : '<span class="badge badge-ok">On Duty</span>';
+    var timeClass = 'running-time' + (d.isOvertime ? ' over' : '');
+    return '<tr ' + rowClass + '>' +
+      '<td>' + esc(d.driverName) + '</td>' +
+      '<td>' + esc(d.vehicleNumber) + '</td>' +
+      '<td>' + stageBadge + '</td>' +
+      '<td>' + esc(d.arrivalTime) + '</td>' +
+      '<td class="' + timeClass + '">' + d.runningHours.toFixed(1) + ' hrs</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderPunchOutMisses(punchMisses) {
+  var stageLabels = { 2: 'Stage 2 (Departure)', 3: 'Stage 3 (Last Drop)', 4: 'Stage 4 (Shift Complete)' };
+  var missBody = document.getElementById('tbody-misses');
+  document.getElementById('miss-count-badge').textContent = punchMisses.length;
+  if (!punchMisses.length) {
+    missBody.innerHTML = '<tr><td colspan="4" class="no-data"><span class="material-icons">check_circle</span>No punch-out misses</td></tr>';
+    return;
+  }
+  missBody.innerHTML = punchMisses.map(function(m) {
+    return '<tr>' +
+      '<td>' + esc(m.shiftDate) + '</td>' +
+      '<td>' + esc(m.driverName) + '</td>' +
+      '<td>' + esc(m.vehicleNumber) + '</td>' +
+      '<td><span class="badge badge-miss">' + esc(stageLabels[m.stuckStage] || 'Unknown') + '</span></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderFailedDropsTable(failedDropsByDate) {
+  var tbody = document.getElementById('tbody-failed-drops');
+  if (!failedDropsByDate.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data"><span class="material-icons">check_circle</span>No failed drops data</td></tr>';
+    return;
+  }
+  var html = failedDropsByDate.map(function(row, idx) {
+    var rateStyle  = row.failureRate > 20 ? 'color:var(--error);font-weight:700' : '';
+    var drillClass = 'drill-' + idx;
+    var driverRows = (row.drivers || []).map(function(d) {
+      var dRate = d.totalDrops > 0 ? Math.round((d.failedDrops / d.totalDrops) * 1000) / 10 : 0;
+      var dRateStyle = dRate > 20 ? 'color:var(--error);font-weight:700' : '';
+      return '<tr class="drill-row ' + drillClass + '" style="display:none">' +
+        '<td style="color:var(--text-secondary);padding-left:20px">↳ ' + esc(d.driverName) + '</td>' +
+        '<td>' + d.totalDrops + '</td>' +
+        '<td>' + d.failedDrops + '</td>' +
+        '<td style="' + dRateStyle + '">' + dRate + '%</td>' +
+        '<td></td>' +
+        '</tr>';
+    }).join('');
+    return '<tr onclick="toggleDrill(\'' + drillClass + '\',this)" style="cursor:pointer">' +
+      '<td>' + esc(row.date) + '</td>' +
+      '<td>' + row.totalDrops + '</td>' +
+      '<td>' + row.failedDrops + '</td>' +
+      '<td style="' + rateStyle + '">' + row.failureRate + '%</td>' +
+      '<td><span class="material-icons" style="font-size:16px;color:#999;vertical-align:middle">expand_more</span></td>' +
+      '</tr>' + driverRows;
+  }).join('');
+  tbody.innerHTML = html;
+}
+
+function toggleDrill(drillClass, headerRow) {
+  var rows   = document.querySelectorAll('tr.' + drillClass);
+  var icon   = headerRow.querySelector('.material-icons');
+  var hidden = rows.length && rows[0].style.display === 'none';
+  rows.forEach(function(r) { r.style.display = hidden ? '' : 'none'; });
+  if (icon) icon.textContent = hidden ? 'expand_less' : 'expand_more';
+}
+
+function renderOvertimeTable(overtimeByDate) {
+  var tbody = document.getElementById('tbody-overtime');
+  if (!overtimeByDate.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data"><span class="material-icons">schedule</span>No overtime recorded</td></tr>';
+    return;
+  }
+  var html = '';
+  overtimeByDate.forEach(function(group) {
+    group.drivers.forEach(function(d) {
+      html += '<tr>' +
+        '<td>' + esc(group.date) + '</td>' +
+        '<td>' + esc(d.driverName) + '</td>' +
+        '<td>' + d.shiftDuration.toFixed(1) + ' hrs</td>' +
+        '<td style="color:var(--error);font-weight:700">' + d.overtime.toFixed(2) + ' hrs</td>' +
+        '</tr>';
+    });
+  });
+  tbody.innerHTML = html;
 }
 
 function renderTrendChart(trendData) {
@@ -2033,7 +3015,14 @@ function renderTrendChart(trendData) {
     },
     options: {
       responsive: true,
-      plugins: { legend: { position: 'top' } },
+      plugins: {
+        legend: { position: 'top' },
+        datalabels: {
+          anchor: 'end', align: 'end',
+          font: { size: 10 }, color: '#444',
+          formatter: function(v) { return v > 0 ? v.toFixed(1) : ''; }
+        }
+      },
       scales: { y: { beginAtZero: true, title: { display: true, text: 'Hours' } } }
     }
   });
@@ -2055,7 +3044,7 @@ function renderVehicleChart(vehicleData) {
     data: {
       labels: vehicleData.map(function(v) { return v.vehicleNumber; }),
       datasets: [{
-        label: 'Total Running Hours',
+        label: 'Running Hours',
         data: vehicleData.map(function(v) { return v.totalHours; }),
         backgroundColor: 'rgba(25,118,210,0.8)',
         borderRadius: 4
@@ -2064,10 +3053,160 @@ function renderVehicleChart(vehicleData) {
     options: {
       responsive: true,
       indexAxis: 'y',
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          anchor: 'end', align: 'end',
+          font: { size: 11, weight: '600' }, color: '#1565C0',
+          formatter: function(v) { return v > 0 ? v.toFixed(1) + ' h' : ''; }
+        }
+      },
       scales: { x: { beginAtZero: true, title: { display: true, text: 'Hours' } } }
     }
   });
+}
+
+function renderVehicleKmChart(vehicleKmByDate, dateStr) {
+  var titleEl = document.getElementById('vehicle-km-title');
+  if (titleEl) titleEl.textContent = 'Vehicle km Run — ' + (dateStr || '');
+  var ctx = document.getElementById('chart-vehicle-km').getContext('2d');
+  if (dashCharts.vehicleKm) { dashCharts.vehicleKm.destroy(); }
+  if (!vehicleKmByDate.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#999';
+    ctx.font = '14px Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data for selected date', ctx.canvas.width / 2, 80);
+    return;
+  }
+  dashCharts.vehicleKm = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: vehicleKmByDate.map(function(v) { return v.vehicleNumber; }),
+      datasets: [{
+        label: 'km Run',
+        data: vehicleKmByDate.map(function(v) { return v.km; }),
+        backgroundColor: 'rgba(46,125,50,0.8)',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          anchor: 'end', align: 'end',
+          font: { size: 11, weight: '600' }, color: '#2E7D32',
+          formatter: function(v) { return v > 0 ? v + ' km' : ''; }
+        }
+      },
+      scales: { x: { beginAtZero: true, title: { display: true, text: 'km' } } }
+    }
+  });
+}
+
+function renderStageTimingTable(stageTimings, dateStr) {
+  var titleEl = document.getElementById('stage-timing-title');
+  if (titleEl) titleEl.textContent = 'Stage Timing — ' + (dateStr || '');
+  var tbody = document.getElementById('tbody-stage-timing');
+  if (!stageTimings.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data"><span class="material-icons">timer_off</span>No shift data for this date</td></tr>';
+    return;
+  }
+  tbody.innerHTML = stageTimings.map(function(row) {
+    function fmtGap(gap, isAuto) {
+      if (isAuto) return '<span style="color:#999">—</span>';
+      if (gap === null || gap === undefined) return '<span style="color:#ccc">—</span>';
+      var style = gap > 2 ? 'color:var(--error);font-weight:600' : '';
+      return '<span style="' + style + '">' + gap.toFixed(2) + ' hrs</span>';
+    }
+    return '<tr>' +
+      '<td>' + esc(row.driverName) + '</td>' +
+      '<td>' + esc(row.vehicleNumber) + '</td>' +
+      '<td>' + fmtGap(row.gap12, row.gap12Auto) + '</td>' +
+      '<td>' + fmtGap(row.gap23, false) + '</td>' +
+      '<td>' + fmtGap(row.gap34, false) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+// Helper: get 'YYYY-MM-DD' for yesterday in Dubai time (UTC+4)
+function getDubaiYesterdayString() {
+  return getDubaiNDaysAgoString(1);
+}
+
+function getDubaiTodayString() {
+  return getDubaiNDaysAgoString(0);
+}
+
+function getDubaiNDaysAgoString(n) {
+  var now     = new Date();
+  var dubaiMs = now.getTime() + (now.getTimezoneOffset() + 240) * 60000;
+  var d       = new Date(dubaiMs - n * 86400000);
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+// Convert 'YYYY-MM-DD' to 'DD/MM/YYYY' for backend calls
+function isoToDubai(isoStr) {
+  if (!isoStr) return '';
+  var p = isoStr.split('-');
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+function loadDetailData(isoDateStr) {
+  var dubaiDate = isoToDubai(isoDateStr);
+  if (!dubaiDate) return;
+  showLoading('Loading detail data...');
+  callServer('getDashboardDetailData', [dubaiDate],
+    function(data) {
+      hideLoading();
+      if (data && data.error) { showToast('Detail data error: ' + data.error, 'error'); return; }
+      try { renderVehicleKmChart(data.vehicleKmByDate || [], isoDateStr); } catch(e) { console.warn('Vehicle km chart error:', e); }
+      renderStageTimingTable(data.stageTimings || [], isoDateStr);
+    },
+    function(err) {
+      hideLoading();
+      showToast('Failed to load detail data: ' + err, 'error');
+    }
+  );
+}
+
+function loadVehicleKm() {
+  var picker = document.getElementById('vehicle-date-picker');
+  if (picker && picker.value) loadDetailData(picker.value);
+}
+
+function loadStageTimings() {
+  var picker = document.getElementById('stage-timing-date-picker');
+  if (picker && picker.value) loadDetailData(picker.value);
+}
+
+function loadVehicleHours() {
+  var fromPicker = document.getElementById('vhours-from-picker');
+  var toPicker   = document.getElementById('vhours-to-picker');
+  if (!fromPicker || !toPicker || !fromPicker.value || !toPicker.value) {
+    showToast('Please select both From and To dates.', 'error');
+    return;
+  }
+  var fromDubai = isoToDubai(fromPicker.value);
+  var toDubai   = isoToDubai(toPicker.value);
+  var titleEl   = document.getElementById('vehicle-hours-title');
+  if (titleEl) titleEl.textContent = 'Vehicle Running Hours (' + fromPicker.value + ' to ' + toPicker.value + ')';
+  showLoading('Loading vehicle hours...');
+  callServer('getVehicleHoursForRange', [fromDubai, toDubai],
+    function(data) {
+      hideLoading();
+      if (data && data.error) { showToast('Vehicle hours error: ' + data.error, 'error'); return; }
+      try { renderVehicleChart(data || []); } catch(e) { console.warn('Vehicle chart error:', e); }
+    },
+    function(err) {
+      hideLoading();
+      showToast('Failed to load vehicle hours: ' + err, 'error');
+    }
+  );
 }
 
 // Auto-refresh dashboard every 5 minutes
@@ -2084,48 +3223,68 @@ function resetForms() {
                     'sos1-helper-search','sos1-helper-id','sos1-helper-name','sos1-helper-company',
                     'sos1-helper-company-manual','sos1-helper-name-manual',
                     'sos1-vehicle-search','sos1-vehicle-number','sos1-odometer','sos1-fuel',
-                    'sos1-shift-start-time'];
+                    'sos1-customer-search','sos1-customer-name','sos1-total-drops'];
   sos1Fields.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
+  setDtVal('sos1-shift-start-time', '');
+  var destEl = document.getElementById('sos1-destination');
+  if (destEl) destEl.value = '';
+  // Reset driver chip
+  var chip = document.getElementById('sos1-driver-chip');
+  var searchArea = document.getElementById('sos1-driver-search-area');
+  if (chip) chip.classList.add('hidden');
+  if (searchArea) searchArea.classList.remove('hidden');
   // Reset helper mode to search
   toggleHelperMode('search');
 
   // Stage 2 fields
   document.getElementById('sos2-driver-search').value = '';
   document.getElementById('sos2-confirm-details').classList.add('hidden');
-  var depEl = document.getElementById('sos2-departure-time');
-  if (depEl) depEl.value = '';
+  setDtVal('sos2-departure-time', '');
 
-  // EOS fields
-  ['eos-driver-search','eos-last-drop','eos-odometer','eos-shift-complete'].forEach(function(id) {
+  // Stage 3 fields
+  var eos3SearchEl = document.getElementById('eos3-driver-search');
+  if (eos3SearchEl) eos3SearchEl.value = '';
+  setDtVal('eos3-last-drop', '');
+  var fd3 = document.getElementById('eos3-failed-drops');
+  if (fd3) fd3.value = '0';
+  var f3 = document.getElementById('eos3-form');
+  if (f3) f3.classList.add('hidden');
+
+  // Stage 4 fields
+  ['eos4-driver-search','eos4-odometer'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
-  var failedEl = document.getElementById('eos-failed-drops');
-  if (failedEl) failedEl.value = '0';
-  document.getElementById('eos-form').classList.add('hidden');
+  setDtVal('eos4-shift-complete', '');
+  var f4 = document.getElementById('eos4-form');
+  if (f4) f4.classList.add('hidden');
 
   // Reset photo captures and camera previews
-  ['start','end'].forEach(function(slot) {
+  ['start','lastDrop','end'].forEach(function(slot) {
     state.capturedPhotos[slot] = null;
-    var resultEl = document.getElementById('photo-result-' + slot);
-    var wrapEl   = document.getElementById('camera-wrapper-' + slot);
-    var errEl    = document.getElementById('camera-error-' + slot);
+    var resultEl  = document.getElementById('photo-result-' + slot);
+    var wrapEl    = document.getElementById('camera-wrapper-' + slot);
+    var errEl     = document.getElementById('camera-error-' + slot);
+    var inputEl   = document.getElementById('camera-input-' + slot);
     if (resultEl) resultEl.classList.add('hidden');
     if (wrapEl)   wrapEl.classList.remove('hidden');
     if (errEl)    errEl.remove();
+    if (inputEl)  inputEl.value = '';
   });
 
   // Reset state
-  state._selectedDriver  = null;
-  state._selectedHelper  = null;
-  state._selectedVehicle = null;
-  state.selectedEosDriver = null;
-  state.currentRowId     = null;
-  state.activeDrivers    = [];
-  state.stage1Drivers    = [];
+  state._selectedDriver    = null;
+  state._selectedHelper    = null;
+  state._selectedVehicle   = null;
+  state.selectedEos3Driver = null;
+  state.selectedEos4Driver = null;
+  state.currentRowId       = null;
+  state.activeDrivers      = [];
+  state.stage1Drivers      = [];
+  state.stage3Drivers      = [];
 
   // Close any open autocomplete lists
   document.querySelectorAll('.autocomplete-list').forEach(function(el) {
@@ -2194,6 +3353,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (APP_DATA && APP_DATA.error) {
     showToast('Warning: ' + APP_DATA.error, 'warning');
+  }
+
+  // Build hour (00-23) and minute (00-59) options for custom 24h datetime pickers
+  ['sos1-shift-start-time','sos2-departure-time','eos3-last-drop','eos4-shift-complete'].forEach(function(baseId) {
+    var hSel = document.getElementById(baseId + '-h');
+    var mSel = document.getElementById(baseId + '-m');
+    if (hSel) { for (var i = 0; i < 24; i++) { var o = document.createElement('option'); o.value = pad2(i); o.textContent = pad2(i); hSel.appendChild(o); } }
+    if (mSel) { for (var j = 0; j < 60; j++) { var o = document.createElement('option'); o.value = pad2(j); o.textContent = pad2(j); mSel.appendChild(o); } }
+  });
+
+  // Populate destination emirate <select> from loaded data
+  var destSelect = document.getElementById('sos1-destination');
+  if (destSelect && state.destinations && state.destinations.length) {
+    state.destinations.forEach(function(dest) {
+      var opt = document.createElement('option');
+      opt.value = dest;
+      opt.textContent = dest;
+      destSelect.appendChild(opt);
+    });
   }
 
   // Fade out splash screen — show for at least 1.5 s so branding is visible

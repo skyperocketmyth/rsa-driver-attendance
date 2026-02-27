@@ -16,37 +16,44 @@ const DRIVE_FOLDER_ID  = '105-FYZkG7mBsBOP7t3AGvL8zLWyn-WqS'; // <-- Replace bef
 const OVERTIME_HOURS   = 9;
 const TIMEZONE         = 'Asia/Dubai';
 
-// Attendance Data column numbers (1-based, matching sheet columns A-T)
+// Attendance Data column numbers (1-based, matching sheet columns A-Y)
 const COL = {
-  ROW_ID:         1,  // A
-  SHIFT_DATE:     2,  // B
-  DRIVER_ID:      3,  // C
-  DRIVER_NAME:    4,  // D
-  HELPER_ID:      5,  // E
-  HELPER_NAME:    6,  // F
-  HELPER_COMPANY: 7,  // G
-  VEHICLE:        8,  // H
-  START_ODO:      9,  // I
-  START_PHOTO:    10, // J
-  FUEL:           11, // K
-  ARRIVAL:        12, // L
-  DEPARTURE:      13, // M
-  LAST_DROP:      14, // N
-  END_TIME:       15, // O
-  END_ODO:        16, // P
-  END_PHOTO:      17, // Q
-  FAILED_DROPS:   18, // R
-  SHIFT_DURATION: 19, // S
-  OVERTIME:       20  // T
+  ROW_ID:            1,  // A
+  SHIFT_DATE:        2,  // B
+  DRIVER_ID:         3,  // C
+  DRIVER_NAME:       4,  // D
+  HELPER_ID:         5,  // E
+  HELPER_NAME:       6,  // F
+  HELPER_COMPANY:    7,  // G
+  VEHICLE:           8,  // H
+  START_ODO:         9,  // I
+  START_PHOTO:       10, // J
+  FUEL:              11, // K
+  DESTINATION:       12, // L  — Destination Emirate
+  PRIMARY_CUSTOMER:  13, // M  — Primary Customer Name
+  TOTAL_DROPS:       14, // N  — Total Drops (planned)
+  ARRIVAL:           15, // O  — Arrival at Gate
+  DEPARTURE:         16, // P
+  LAST_DROP:         17, // Q
+  LAST_DROP_PHOTO:   18, // R  — Last Drop Odometer Photo URL
+  LAST_DROP_SUBMIT:  19, // S  — Last Drop Submission Timestamp
+  FAILED_DROPS:      20, // T
+  END_TIME:          21, // U
+  END_ODO:           22, // V
+  END_PHOTO:         23, // W
+  SHIFT_DURATION:    24, // X
+  OVERTIME:          25  // Y
 };
 
 const HEADERS = [
   'Row ID', 'Shift Date', 'Driver Employee ID', 'Driver Name',
   'Helper Employee ID', 'Helper Name', 'Helper Company', 'Vehicle Number',
   'Start Odometer (km)', 'Start Odometer Photo URL', 'Fuel Taken',
-  'Arrival at Warehouse', 'Departure from Warehouse',
-  'Last Drop Date & Time', 'End of Shift Date & Time',
-  'End Odometer (km)', 'End Odometer Photo URL', 'Number of Failed Drops',
+  'Destination Emirate', 'Primary Customer Name', 'Total Drops',
+  'Arrival at Gate', 'Departure from Warehouse',
+  'Last Drop Date & Time', 'Last Drop Odo Photo URL', 'Last Drop Submission Time',
+  'Number of Failed Drops', 'Shift Complete Date & Time',
+  'End Odometer (km)', 'End Odometer Photo URL',
   'Shift Duration (hrs)', 'Overtime Hours'
 ];
 
@@ -92,7 +99,7 @@ function doGet(e) {
   template.view = view;
 
   return template.evaluate()
-    .setTitle('Driver Attendance')
+    .setTitle('RSA Driver App')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -181,8 +188,8 @@ function buildPwaManifest_() {
   ] : [];
 
   var manifest = {
-    name:             'RSA Driver Attendance',
-    short_name:       'RSA Attend',
+    name:             'RSA Driver App',
+    short_name:       'RSA Driver',
     description:      'Driver shift tracking and attendance management for RSA Transport',
     start_url:        deployUrl || '/',
     display:          'standalone',
@@ -214,12 +221,17 @@ function getInitialData() {
     return { drivers: [], helpers: [], vehicles: [] };
   }
 
-  var values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  // Read up to column V (22 cols) to capture destination (col S=19) and customer (col V=22)
+  var values = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
 
-  var drivers    = [];
-  var helpers    = [];
-  var vehicles   = [];
-  var vehicleSet = {};
+  var drivers      = [];
+  var helpers      = [];
+  var vehicles     = [];
+  var destinations = [];
+  var customers    = [];
+  var vehicleSet   = {};
+  var destSet      = {};
+  var custSet      = {};
 
   values.forEach(function(row) {
     var driverId   = String(row[0]).trim();
@@ -228,6 +240,8 @@ function getInitialData() {
     var helperName = String(row[5]).trim();
     var helperCo   = String(row[6]).trim();
     var vehicle    = String(row[9]).trim();
+    var dest       = String(row[18]).trim();  // Column S (0-indexed: 18)
+    var customer   = String(row[21]).trim();  // Column V (0-indexed: 21)
 
     if (driverId && driverName) {
       drivers.push({ id: driverId, name: driverName });
@@ -239,9 +253,18 @@ function getInitialData() {
       vehicleSet[vehicle] = true;
       vehicles.push({ number: vehicle });
     }
+    if (dest && !destSet[dest]) {
+      destSet[dest] = true;
+      destinations.push(dest);
+    }
+    if (customer && !custSet[customer]) {
+      custSet[customer] = true;
+      customers.push({ name: customer });
+    }
   });
 
-  return { drivers: drivers, helpers: helpers, vehicles: vehicles };
+  return { drivers: drivers, helpers: helpers, vehicles: vehicles,
+           destinations: destinations, customers: customers };
 }
 
 // =============================================================================
@@ -337,38 +360,64 @@ function saveShiftStart(data) {
     var arrivalStr = formatDatetimeLocalInput_(data.shiftStartTime);
     var shiftDate  = arrivalStr.split(' ')[0];  // Extract 'DD/MM/YYYY' from 'DD/MM/YYYY HH:MM'
 
-    // Guard: check if this driver already has an incomplete shift on the same date
+    // Guard: check if this driver has ANY incomplete shift (any date)
     var lastRow = sheet.getLastRow();
     if (lastRow >= 2) {
       var allData = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
       for (var i = 0; i < allData.length; i++) {
         var r              = allData[i];
         var existingDriver = String(r[COL.DRIVER_ID - 1]).trim();
-        var existingDate   = String(r[COL.SHIFT_DATE - 1]).trim();
         var existingEnd    = String(r[COL.END_TIME - 1]).trim();
-        if (existingDriver === data.driverId && existingDate === shiftDate && !existingEnd) {
-          return { success: false, error: 'This driver already has an active shift on ' + shiftDate + '. End that shift first.' };
+        if (existingDriver !== data.driverId) continue;
+        if (existingEnd) continue;  // shift fully completed, skip
+
+        // Driver has an incomplete shift — determine which stage they're stuck on
+        var existingDate      = String(r[COL.SHIFT_DATE - 1]).trim();
+        var existingArrival   = String(r[COL.ARRIVAL - 1]).trim();
+        var existingDeparture = String(r[COL.DEPARTURE - 1]).trim();
+        var existingLastDrop  = String(r[COL.LAST_DROP_SUBMIT - 1]).trim();
+
+        var stuckStage, stageLabel;
+        if (existingArrival && !existingDeparture && !existingLastDrop) {
+          stuckStage = 2; stageLabel = 'Stage 2 (Departure)';
+        } else if (existingDeparture && !existingLastDrop) {
+          stuckStage = 3; stageLabel = 'Stage 3 (Last Drop)';
+        } else if (existingLastDrop) {
+          stuckStage = 4; stageLabel = 'Stage 4 (Shift Complete)';
+        } else {
+          stuckStage = 1; stageLabel = 'Stage 1';
         }
+
+        return {
+          success: false,
+          error: 'You have an incomplete shift from ' + existingDate + '. Please complete ' + stageLabel + ' before starting a new shift.',
+          incompleteShiftDate:     existingDate,
+          incompleteShiftStage:    stageLabel,
+          incompleteShiftStageNum: stuckStage
+        };
       }
     }
 
     var rowId    = generateRowId_(data.driverId);
     var photoUrl = saveOdometerPhoto_(data.startPhotoBase64, rowId + '_start.jpg');
 
-    // Build 20-element row (A–T)
-    var row = new Array(20).fill('');
-    row[COL.ROW_ID - 1]         = rowId;
-    row[COL.SHIFT_DATE - 1]     = shiftDate;
-    row[COL.DRIVER_ID - 1]      = data.driverId;
-    row[COL.DRIVER_NAME - 1]    = data.driverName;
-    row[COL.HELPER_ID - 1]      = data.helperId || '';
-    row[COL.HELPER_NAME - 1]    = data.helperName || '';
-    row[COL.HELPER_COMPANY - 1] = data.helperCompany || '';
-    row[COL.VEHICLE - 1]        = data.vehicleNumber;
-    row[COL.START_ODO - 1]      = Number(data.startOdometer);
-    row[COL.START_PHOTO - 1]    = photoUrl;
-    row[COL.FUEL - 1]           = data.fuelTaken || '';
-    row[COL.ARRIVAL - 1]        = arrivalStr;
+    // Build 25-element row (A–Y)
+    var row = new Array(25).fill('');
+    row[COL.ROW_ID - 1]           = rowId;
+    row[COL.SHIFT_DATE - 1]       = shiftDate;
+    row[COL.DRIVER_ID - 1]        = data.driverId;
+    row[COL.DRIVER_NAME - 1]      = data.driverName;
+    row[COL.HELPER_ID - 1]        = data.helperId || '';
+    row[COL.HELPER_NAME - 1]      = data.helperName || '';
+    row[COL.HELPER_COMPANY - 1]   = data.helperCompany || '';
+    row[COL.VEHICLE - 1]          = data.vehicleNumber;
+    row[COL.START_ODO - 1]        = Number(data.startOdometer);
+    row[COL.START_PHOTO - 1]      = photoUrl;
+    row[COL.FUEL - 1]             = data.fuelTaken || '';
+    row[COL.DESTINATION - 1]      = data.destinationEmirate || '';
+    row[COL.PRIMARY_CUSTOMER - 1] = data.primaryCustomer || '';
+    row[COL.TOTAL_DROPS - 1]      = Number(data.totalDrops) || 0;
+    row[COL.ARRIVAL - 1]          = arrivalStr;
 
     sheet.appendRow(row);
 
@@ -440,9 +489,11 @@ function saveDeparture(rowId, departureTimeStr) {
 }
 
 // =============================================================================
-// END OF SHIFT
+// STAGE 3 — LAST DROP
 // =============================================================================
 
+// Returns drivers eligible for Stage 3: have arrival but no last-drop submission yet.
+// Stage 2 (departure) is optional — if skipped it will be auto-filled on saveShiftEnd.
 function getActiveDriversForEndShift() {
   try {
     var sheet   = getOrCreateAttendanceSheet_();
@@ -453,20 +504,80 @@ function getActiveDriversForEndShift() {
     var result = [];
 
     values.forEach(function(row) {
-      var arrival   = String(row[COL.ARRIVAL - 1]).trim();
-      var departure = String(row[COL.DEPARTURE - 1]).trim();
-      var endTime   = String(row[COL.END_TIME - 1]).trim();
+      var arrival      = String(row[COL.ARRIVAL - 1]).trim();
+      var departure    = String(row[COL.DEPARTURE - 1]).trim();
+      var lastDropSub  = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
 
-      // Include all drivers who started a shift (arrival done) but haven't ended it yet.
-      // Stage 2 (departure) is not required — if skipped it will be auto-filled on saveShiftEnd.
-      if (arrival && !endTime) {
+      // Stage 3 candidates: arrival done, last-drop not yet submitted
+      if (arrival && !lastDropSub) {
         result.push({
-          rowId:          String(row[COL.ROW_ID - 1]).trim(),
-          driverId:       String(row[COL.DRIVER_ID - 1]).trim(),
-          driverName:     String(row[COL.DRIVER_NAME - 1]).trim(),
-          vehicleNumber:  String(row[COL.VEHICLE - 1]).trim(),
-          departureTime:  departure,
-          hasDeparture:   departure !== ''
+          rowId:         String(row[COL.ROW_ID - 1]).trim(),
+          driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
+          driverName:    String(row[COL.DRIVER_NAME - 1]).trim(),
+          vehicleNumber: String(row[COL.VEHICLE - 1]).trim(),
+          departureTime: departure,
+          hasDeparture:  departure !== ''
+        });
+      }
+    });
+
+    return result.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); });
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveLastDrop(data) {
+  try {
+    var sheet  = getOrCreateAttendanceSheet_();
+    var rowNum = findRowByRowId_(sheet, data.rowId);
+    if (!rowNum) {
+      return { success: false, error: 'Shift record not found.' };
+    }
+
+    if (!data.lastDropTime) {
+      return { success: false, error: 'Last drop date & time is required.' };
+    }
+
+    var photoUrl          = saveOdometerPhoto_(data.lastDropPhotoBase64, data.rowId + '_lastdrop.jpg');
+    var lastDropFormatted = formatDatetimeLocalInput_(data.lastDropTime);
+    var submitTime        = formatDubai_(new Date());  // auto-captured server timestamp
+
+    sheet.getRange(rowNum, COL.LAST_DROP).setValue(lastDropFormatted);
+    sheet.getRange(rowNum, COL.LAST_DROP_PHOTO).setValue(photoUrl);
+    sheet.getRange(rowNum, COL.LAST_DROP_SUBMIT).setValue(submitTime);
+    sheet.getRange(rowNum, COL.FAILED_DROPS).setValue(Number(data.failedDrops) || 0);
+
+    return { success: true, submitTime: submitTime };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// =============================================================================
+// STAGE 4 — SHIFT COMPLETE
+// =============================================================================
+
+// Returns drivers eligible for Stage 4: Stage 3 done but shift not yet completed.
+function getStage3PendingDrivers() {
+  try {
+    var sheet   = getOrCreateAttendanceSheet_();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    var values = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+    var result = [];
+
+    values.forEach(function(row) {
+      var lastDropSub = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
+      var endTime     = String(row[COL.END_TIME - 1]).trim();
+
+      if (lastDropSub && !endTime) {
+        result.push({
+          rowId:         String(row[COL.ROW_ID - 1]).trim(),
+          driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
+          driverName:    String(row[COL.DRIVER_NAME - 1]).trim(),
+          vehicleNumber: String(row[COL.VEHICLE - 1]).trim()
         });
       }
     });
@@ -500,7 +611,7 @@ function saveShiftEnd(data) {
       sheet.getRange(rowNum, COL.DEPARTURE).setValue(endTimeStr);
     }
 
-    // Compute shift duration from arrival time (col L) to manually entered end time
+    // Compute shift duration from arrival time to manually entered end time
     var arrivalStr  = String(sheet.getRange(rowNum, COL.ARRIVAL).getValue()).trim();
     var arrivalDate = parseDubaiDate_(arrivalStr);
     var endDate     = parseDubaiDate_(endTimeStr);
@@ -512,18 +623,12 @@ function saveShiftEnd(data) {
       overtime      = Math.round(Math.max(0, shiftDuration - OVERTIME_HOURS) * 100) / 100;
     }
 
-    var lastDropFormatted = formatDatetimeLocalInput_(data.lastDropTime);
-
-    // Batch write columns N–T (14 to 20)
-    sheet.getRange(rowNum, COL.LAST_DROP, 1, 7).setValues([[
-      lastDropFormatted,
-      endTimeStr,
-      Number(data.endOdometer),
-      photoUrl,
-      Number(data.failedDrops),
-      shiftDuration,
-      overtime
-    ]]);
+    // Write Stage 4 fields: END_TIME, END_ODO, END_PHOTO, SHIFT_DURATION, OVERTIME
+    sheet.getRange(rowNum, COL.END_TIME).setValue(endTimeStr);
+    sheet.getRange(rowNum, COL.END_ODO).setValue(Number(data.endOdometer));
+    sheet.getRange(rowNum, COL.END_PHOTO).setValue(photoUrl);
+    sheet.getRange(rowNum, COL.SHIFT_DURATION).setValue(shiftDuration);
+    sheet.getRange(rowNum, COL.OVERTIME).setValue(overtime);
 
     return { success: true, shiftDuration: shiftDuration, overtime: overtime };
   } catch (err) {
@@ -554,28 +659,42 @@ function getDashboardData() {
     var vehicleHoursMap = {};
     var trendMap        = {};
     var helperCoMap     = {};
+    var failedDropMap   = {};  // keyed by shiftDate
+    var overtimeMap     = {};  // keyed by shiftDate
 
     values.forEach(function(row) {
-      var rowId       = String(row[COL.ROW_ID - 1]).trim();
-      var shiftDate   = String(row[COL.SHIFT_DATE - 1]).trim();
-      var driverId    = String(row[COL.DRIVER_ID - 1]).trim();
-      var driverName  = String(row[COL.DRIVER_NAME - 1]).trim();
-      var vehicle     = String(row[COL.VEHICLE - 1]).trim();
-      var departure   = String(row[COL.DEPARTURE - 1]).trim();
-      var endTime     = String(row[COL.END_TIME - 1]).trim();
-      var shiftDur    = Number(row[COL.SHIFT_DURATION - 1]) || 0;
-      var overtime    = Number(row[COL.OVERTIME - 1]) || 0;
-      var failedDrops = Number(row[COL.FAILED_DROPS - 1]) || 0;
-      var helperCo    = String(row[COL.HELPER_COMPANY - 1]).trim();
-      var arrivalStr  = String(row[COL.ARRIVAL - 1]).trim();
+      var rowId        = String(row[COL.ROW_ID - 1]).trim();
+      var shiftDate    = String(row[COL.SHIFT_DATE - 1]).trim();
+      var driverId     = String(row[COL.DRIVER_ID - 1]).trim();
+      var driverName   = String(row[COL.DRIVER_NAME - 1]).trim();
+      var vehicle      = String(row[COL.VEHICLE - 1]).trim();
+      var arrivalStr   = String(row[COL.ARRIVAL - 1]).trim();
+      var departure    = String(row[COL.DEPARTURE - 1]).trim();
+      var lastDropSub  = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
+      var endTime      = String(row[COL.END_TIME - 1]).trim();
+      var shiftDur     = Number(row[COL.SHIFT_DURATION - 1]) || 0;
+      var overtime     = Number(row[COL.OVERTIME - 1]) || 0;
+      var failedDrops  = Number(row[COL.FAILED_DROPS - 1]) || 0;
+      var totalDrops   = Number(row[COL.TOTAL_DROPS - 1]) || 0;
+      var helperCo     = String(row[COL.HELPER_COMPANY - 1]).trim();
 
       if (!driverId) return;
 
-      // Active drivers: departed but not ended
-      if (departure && !endTime) {
-        var departureDate = parseDubaiDate_(departure);
-        var runningHours  = departureDate
-          ? Math.round(((now - departureDate) / 3600000) * 100) / 100
+      // Active drivers: any incomplete shift (arrival present, no end time)
+      if (arrivalStr && !endTime) {
+        // Determine current stage
+        var currentStage;
+        if (!departure) {
+          currentStage = 1;  // Arrived at gate, not yet departed
+        } else if (!lastDropSub) {
+          currentStage = 2;  // Departed, last drop not yet submitted
+        } else {
+          currentStage = 3;  // Last drop done, shift not yet complete
+        }
+
+        var arrivalDateObj = parseDubaiDate_(arrivalStr);
+        var runningHours   = arrivalDateObj
+          ? Math.round(((now - arrivalDateObj) / 3600000) * 100) / 100
           : 0;
 
         activeDrivers.push({
@@ -583,19 +702,30 @@ function getDashboardData() {
           driverId:      driverId,
           driverName:    driverName,
           vehicleNumber: vehicle,
+          arrivalTime:   arrivalStr,
           departureTime: departure,
           runningHours:  runningHours,
+          currentStage:  currentStage,
           isOvertime:    runningHours > OVERTIME_HOURS
         });
       }
 
-      // Punch-out misses: departed, no end, NOT today
-      if (departure && !endTime && shiftDate !== today) {
+      // Punch-out misses: any incomplete shift NOT from today
+      if (arrivalStr && !endTime && shiftDate !== today) {
+        var missStage;
+        if (!departure) {
+          missStage = 2;
+        } else if (!lastDropSub) {
+          missStage = 3;
+        } else {
+          missStage = 4;
+        }
         punchOutMisses.push({
           shiftDate:     shiftDate,
           driverId:      driverId,
           driverName:    driverName,
-          vehicleNumber: vehicle
+          vehicleNumber: vehicle,
+          stuckStage:    missStage
         });
       }
 
@@ -608,14 +738,36 @@ function getDashboardData() {
         }
 
         // Trend (last 30 days)
-        var arrivalDateObj = parseDubaiDate_(arrivalStr);
-        if (arrivalDateObj && arrivalDateObj >= thirtyDaysAgo) {
+        var arrivalD = parseDubaiDate_(arrivalStr);
+        if (arrivalD && arrivalD >= thirtyDaysAgo) {
           if (!trendMap[shiftDate]) {
             trendMap[shiftDate] = { count: 0, totalDuration: 0, totalOvertime: 0 };
           }
           trendMap[shiftDate].count++;
           trendMap[shiftDate].totalDuration += shiftDur;
           trendMap[shiftDate].totalOvertime  += overtime;
+        }
+
+        // Failed drops by date
+        if (!failedDropMap[shiftDate]) {
+          failedDropMap[shiftDate] = { totalDrops: 0, failedDrops: 0, drivers: {} };
+        }
+        failedDropMap[shiftDate].totalDrops  += totalDrops;
+        failedDropMap[shiftDate].failedDrops += failedDrops;
+        if (!failedDropMap[shiftDate].drivers[driverName]) {
+          failedDropMap[shiftDate].drivers[driverName] = { totalDrops: 0, failedDrops: 0 };
+        }
+        failedDropMap[shiftDate].drivers[driverName].totalDrops  += totalDrops;
+        failedDropMap[shiftDate].drivers[driverName].failedDrops += failedDrops;
+
+        // Overtime by date/driver (only if overtime > 0)
+        if (overtime > 0) {
+          if (!overtimeMap[shiftDate]) overtimeMap[shiftDate] = [];
+          overtimeMap[shiftDate].push({
+            driverName:    driverName,
+            shiftDuration: shiftDur,
+            overtime:      overtime
+          });
         }
       }
 
@@ -654,12 +806,43 @@ function getDashboardData() {
       .sort(function(a, b) { return b.count - a.count; })
       .slice(0, 5);
 
+    // Failed drops by date (sorted desc)
+    var failedDropsByDate = Object.keys(failedDropMap).sort().reverse().map(function(date) {
+      var d = failedDropMap[date];
+      var failureRate = d.totalDrops > 0
+        ? Math.round((d.failedDrops / d.totalDrops) * 1000) / 10
+        : 0;
+      return {
+        date:        date,
+        totalDrops:  d.totalDrops,
+        failedDrops: d.failedDrops,
+        failureRate: failureRate,
+        drivers: Object.keys(d.drivers).map(function(name) {
+          return {
+            driverName:  name,
+            totalDrops:  d.drivers[name].totalDrops,
+            failedDrops: d.drivers[name].failedDrops
+          };
+        }).sort(function(a, b) { return b.failedDrops - a.failedDrops; })
+      };
+    });
+
+    // Overtime by date/driver (sorted desc)
+    var overtimeByDate = Object.keys(overtimeMap).sort().reverse().map(function(date) {
+      return {
+        date:    date,
+        drivers: overtimeMap[date].sort(function(a, b) { return b.overtime - a.overtime; })
+      };
+    });
+
     return {
       activeCount:      activeDrivers.length,
       activeDrivers:    activeDrivers.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); }),
       shiftTrendByDate: shiftTrendByDate,
       vehicleRunTime:   vehicleRunTime,
       punchOutMisses:   punchOutMisses,
+      failedDropsByDate: failedDropsByDate,
+      overtimeByDate:   overtimeByDate,
       todayStats: {
         avgShiftDuration:     avgShiftToday,
         totalFailedDrops:     totalFailedToday,
@@ -674,11 +857,13 @@ function getDashboardData() {
 
 function buildEmptyDashboard_() {
   return {
-    activeCount:      0,
-    activeDrivers:    [],
-    shiftTrendByDate: [],
-    vehicleRunTime:   [],
-    punchOutMisses:   [],
+    activeCount:       0,
+    activeDrivers:     [],
+    shiftTrendByDate:  [],
+    vehicleRunTime:    [],
+    punchOutMisses:    [],
+    failedDropsByDate: [],
+    overtimeByDate:    [],
     todayStats: {
       avgShiftDuration:     0,
       totalFailedDrops:     0,
@@ -686,4 +871,148 @@ function buildEmptyDashboard_() {
       completedShiftsCount: 0
     }
   };
+}
+
+// =============================================================================
+// DASHBOARD DETAIL DATA (date-specific: vehicle km + stage timings)
+// =============================================================================
+
+function getDashboardDetailData(dateStr) {
+  // dateStr: 'DD/MM/YYYY'
+  try {
+    var sheet   = getOrCreateAttendanceSheet_();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return buildEmptyDetailData_();
+
+    var values      = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+    var vehicleKmMap = {};
+    var stageTimings = [];
+
+    values.forEach(function(row) {
+      var shiftDate = String(row[COL.SHIFT_DATE - 1]).trim();
+      if (shiftDate !== dateStr) return;
+
+      var driverName  = String(row[COL.DRIVER_NAME - 1]).trim();
+      var vehicle     = String(row[COL.VEHICLE - 1]).trim();
+      var arrivalStr  = String(row[COL.ARRIVAL - 1]).trim();
+      var departure   = String(row[COL.DEPARTURE - 1]).trim();
+      var lastDropSub = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
+      var endTime     = String(row[COL.END_TIME - 1]).trim();
+      var startOdo    = Number(row[COL.START_ODO - 1]) || 0;
+      var endOdo      = Number(row[COL.END_ODO - 1])   || 0;
+
+      // Vehicle km: completed shifts with valid odometer readings
+      if (endTime && endOdo > 0 && startOdo > 0 && vehicle) {
+        var km = Math.max(0, endOdo - startOdo);
+        if (!vehicleKmMap[vehicle]) {
+          vehicleKmMap[vehicle] = { km: 0, startOdo: startOdo, endOdo: endOdo };
+        }
+        vehicleKmMap[vehicle].km     += km;
+        vehicleKmMap[vehicle].endOdo  = endOdo;
+      }
+
+      // Stage timings: any shift that has at least an arrival
+      if (arrivalStr) {
+        var arrivalDate = parseDubaiDate_(arrivalStr);
+
+        // gap12: arrival → departure (hrs)
+        var gap12     = null;
+        var gap12Auto = false;
+        if (departure && arrivalDate) {
+          var depDate = parseDubaiDate_(departure);
+          if (depDate) gap12 = Math.round(((depDate - arrivalDate) / 3600000) * 100) / 100;
+          // Auto-filled: departure was set equal to endTime by saveShiftEnd
+          if (endTime && departure === endTime) gap12Auto = true;
+        }
+
+        // gap23: departure → lastDropSubmit (hrs)
+        var gap23 = null;
+        if (departure && lastDropSub) {
+          var dep2 = parseDubaiDate_(departure);
+          var ld   = parseDubaiDate_(lastDropSub);
+          if (dep2 && ld) gap23 = Math.round(((ld - dep2) / 3600000) * 100) / 100;
+        }
+
+        // gap34: lastDropSubmit → endTime (hrs)
+        var gap34 = null;
+        if (lastDropSub && endTime) {
+          var ld2 = parseDubaiDate_(lastDropSub);
+          var et  = parseDubaiDate_(endTime);
+          if (ld2 && et) gap34 = Math.round(((et - ld2) / 3600000) * 100) / 100;
+        }
+
+        stageTimings.push({
+          driverName:    driverName,
+          vehicleNumber: vehicle,
+          arrivalTime:   arrivalStr,
+          gap12:         gap12Auto ? null : gap12,
+          gap12Auto:     gap12Auto,
+          gap23:         gap23,
+          gap34:         gap34,
+          isComplete:    endTime !== ''
+        });
+      }
+    });
+
+    var vehicleKmByDate = Object.keys(vehicleKmMap)
+      .map(function(v) {
+        return { vehicleNumber: v, km: vehicleKmMap[v].km, startOdo: vehicleKmMap[v].startOdo, endOdo: vehicleKmMap[v].endOdo };
+      })
+      .sort(function(a, b) { return b.km - a.km; });
+
+    return {
+      dateStr:         dateStr,
+      vehicleKmByDate: vehicleKmByDate,
+      stageTimings:    stageTimings.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); })
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+function buildEmptyDetailData_() {
+  return { dateStr: '', vehicleKmByDate: [], stageTimings: [] };
+}
+
+// =============================================================================
+// VEHICLE HOURS FOR DATE RANGE
+// =============================================================================
+
+function getVehicleHoursForRange(fromDate, toDate) {
+  // fromDate, toDate: 'DD/MM/YYYY'
+  try {
+    var sheet   = getOrCreateAttendanceSheet_();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    var values = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+
+    // Parse boundary dates for comparison
+    var fromD = parseDubaiDate_(fromDate + ' 00:00:00');
+    var toD   = parseDubaiDate_(toDate   + ' 23:59:59');
+    if (!fromD || !toD) return { error: 'Invalid date range.' };
+
+    var vehicleHoursMap = {};
+
+    values.forEach(function(row) {
+      var shiftDate  = String(row[COL.SHIFT_DATE - 1]).trim();
+      var endTime    = String(row[COL.END_TIME - 1]).trim();
+      var shiftDur   = Number(row[COL.SHIFT_DURATION - 1]) || 0;
+      var vehicle    = String(row[COL.VEHICLE - 1]).trim();
+
+      if (!endTime || shiftDur <= 0 || !vehicle) return;
+
+      var shiftDateObj = parseDubaiDate_(shiftDate + ' 00:00:00');
+      if (!shiftDateObj) return;
+      if (shiftDateObj < fromD || shiftDateObj > toD) return;
+
+      vehicleHoursMap[vehicle] = (vehicleHoursMap[vehicle] || 0) + shiftDur;
+    });
+
+    return Object.keys(vehicleHoursMap)
+      .map(function(v) { return { vehicleNumber: v, totalHours: Math.round(vehicleHoursMap[v] * 100) / 100 }; })
+      .sort(function(a, b) { return b.totalHours - a.totalHours; });
+  } catch (err) {
+    return { error: err.message };
+  }
 }
