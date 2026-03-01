@@ -1053,9 +1053,9 @@
         <div id="helper-panel-manual" class="hidden">
           <div class="field-group">
             <label><span data-i18n="supplierCompany">Supplier Company</span> <span class="required">*</span></label>
-            <input type="text" id="sos1-helper-company-manual"
-              data-i18n-placeholder="supplierCompanyPh"
-              placeholder="Enter supplier / company name">
+            <select id="sos1-helper-company-manual" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;background:var(--surface);color:var(--text-primary);appearance:none;-webkit-appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;">
+              <option value="" disabled selected data-i18n="supplierCompanyPh">Select supplier company</option>
+            </select>
           </div>
           <div class="field-group" style="margin-bottom:0">
             <label><span data-i18n="helperNameOptional">Helper Name (optional)</span></label>
@@ -1115,9 +1115,9 @@
         </div>
         <div class="field-group" style="margin-bottom:0">
           <label data-i18n="fuelTaken">Fuel Taken</label>
-          <input type="text" id="sos1-fuel"
+          <input type="number" id="sos1-fuel"
             data-i18n-placeholder="fuelPh"
-            placeholder="e.g. 40L, Full, None">
+            placeholder="e.g. 40" min="0" step="0.5">
         </div>
       </div>
 
@@ -1209,9 +1209,17 @@
               onkeydown="acKeyNav(event,'sos2-driver-list')">
             <div id="sos2-driver-list" class="autocomplete-list hidden"></div>
           </div>
+          <div id="sos2-loading-drivers" class="hidden" style="font-size:13px;color:var(--text-secondary);margin-top:6px;display:flex;align-items:center;gap:6px;">
+            <div style="width:14px;height:14px;border:2px solid #ccc;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            Loading drivers...
+          </div>
           <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" data-i18n="stage1Note">
-            Only drivers who completed Stage 1 today are shown.
+            Only drivers who completed Stage 1 are shown here.
           </p>
+          <button onclick="loadStage1PendingDrivers()" type="button"
+            style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:4px;margin-top:4px;">
+            <span class="material-icons" style="font-size:15px">refresh</span> <span data-i18n="refreshList">Refresh list</span>
+          </button>
         </div>
 
         <div id="sos2-confirm-details" class="hidden">
@@ -1739,13 +1747,13 @@ var TRANSLATIONS = {
     helperDetails: 'Helper Details',
     fromList: 'From List', manualEntry: 'Manual Entry',
     searchHelper: 'Search Helper', searchHelperPh: 'Type name or employee ID',
-    supplierCompany: 'Supplier Company', supplierCompanyPh: 'Enter supplier / company name',
+    supplierCompany: 'Supplier Company', supplierCompanyPh: 'Select supplier company',
     helperNameOptional: 'Helper Name (optional)', helperNamePh: 'Enter helper name if known',
     vehicleOdo: 'Vehicle & Odometer',
     vehicleNum: 'Vehicle Number', vehiclePh: 'Type to search vehicle',
     startOdo: 'Start Odometer (km)', startOdoPh: 'e.g. 123456',
     odoPhoto: 'Odometer Photo', cameraNote: 'Camera only — file upload not allowed',
-    fuelTaken: 'Fuel Taken', fuelPh: 'e.g. 40L, Full, None',
+    fuelTaken: 'Fuel Taken (Litres)', fuelPh: 'e.g. 40',
     shiftStartSection: 'Shift Start Time',
     arrivalLabel: 'Arrival at Gate Date & Time',
     routeInfo: 'Route & Drop Info',
@@ -1804,13 +1812,13 @@ var TRANSLATIONS = {
     helperDetails: 'सहायक विवरण',
     fromList: 'सूची से', manualEntry: 'मैन्युअल दर्ज',
     searchHelper: 'सहायक खोजें', searchHelperPh: 'नाम या ID टाइप करें',
-    supplierCompany: 'सप्लायर कंपनी', supplierCompanyPh: 'कंपनी का नाम दर्ज करें',
+    supplierCompany: 'सप्लायर कंपनी', supplierCompanyPh: 'सप्लायर कंपनी चुनें',
     helperNameOptional: 'सहायक नाम (वैकल्पिक)', helperNamePh: 'सहायक का नाम दर्ज करें',
     vehicleOdo: 'वाहन और ओडोमीटर',
     vehicleNum: 'वाहन नंबर', vehiclePh: 'वाहन खोजें',
     startOdo: 'शुरुआती ओडोमीटर (km)', startOdoPh: 'उदा. 123456',
     odoPhoto: 'ओडोमीटर फोटो', cameraNote: 'केवल कैमरा — फ़ाइल अपलोड की अनुमति नहीं',
-    fuelTaken: 'ईंधन लिया', fuelPh: 'उदा. 40L, पूर्ण, कोई नहीं',
+    fuelTaken: 'ईंधन लिया (लीटर)', fuelPh: 'उदा. 40',
     shiftStartSection: 'शिफ्ट शुरू समय',
     arrivalLabel: 'गेट पर पहुंचने की तारीख और समय',
     routeInfo: 'रूट और डिलीवरी जानकारी',
@@ -1869,13 +1877,13 @@ var TRANSLATIONS = {
     helperDetails: 'تفاصيل المساعد',
     fromList: 'من القائمة', manualEntry: 'إدخال يدوي',
     searchHelper: 'ابحث عن مساعد', searchHelperPh: 'اكتب الاسم أو رقم الهوية',
-    supplierCompany: 'شركة المورد', supplierCompanyPh: 'أدخل اسم الشركة',
+    supplierCompany: 'شركة المورد', supplierCompanyPh: 'اختر شركة المورد',
     helperNameOptional: 'اسم المساعد (اختياري)', helperNamePh: 'أدخل اسم المساعد إن عُرف',
     vehicleOdo: 'المركبة والعداد',
     vehicleNum: 'رقم المركبة', vehiclePh: 'ابحث عن المركبة',
     startOdo: 'عداد البداية (كم)', startOdoPh: 'مثال: 123456',
     odoPhoto: 'صورة العداد', cameraNote: 'الكاميرا فقط — رفع الملفات غير مسموح',
-    fuelTaken: 'الوقود المأخوذ', fuelPh: 'مثال: 40L، ممتلئ، لا شيء',
+    fuelTaken: 'الوقود المأخوذ (لتر)', fuelPh: 'مثال: 40',
     shiftStartSection: 'وقت بدء الوردة',
     arrivalLabel: 'تاريخ ووقت الوصول إلى البوابة',
     routeInfo: 'معلومات المسار والتوصيل',
@@ -1934,13 +1942,13 @@ var TRANSLATIONS = {
     helperDetails: 'مددگار کی تفصیل',
     fromList: 'فہرست سے', manualEntry: 'دستی اندراج',
     searchHelper: 'مددگار تلاش کریں', searchHelperPh: 'نام یا ID لکھیں',
-    supplierCompany: 'سپلائر کمپنی', supplierCompanyPh: 'کمپنی کا نام درج کریں',
+    supplierCompany: 'سپلائر کمپنی', supplierCompanyPh: 'سپلائر کمپنی منتخب کریں',
     helperNameOptional: 'مددگار کا نام (اختیاری)', helperNamePh: 'مددگار کا نام درج کریں',
     vehicleOdo: 'گاڑی اور اوڈومیٹر',
     vehicleNum: 'گاڑی نمبر', vehiclePh: 'گاڑی تلاش کریں',
     startOdo: 'ابتدائی اوڈومیٹر (km)', startOdoPh: 'مثال: 123456',
     odoPhoto: 'اوڈومیٹر فوٹو', cameraNote: 'صرف کیمرہ — فائل اپلوڈ کی اجازت نہیں',
-    fuelTaken: 'ایندھن لیا', fuelPh: 'مثال: 40L، پورا، کچھ نہیں',
+    fuelTaken: 'ایندھن لیا (لیٹر)', fuelPh: 'مثال: 40',
     shiftStartSection: 'شفٹ شروع ہونے کا وقت',
     arrivalLabel: 'گیٹ پر پہنچنے کی تاریخ اور وقت',
     routeInfo: 'روٹ اور ڈیلیوری معلومات',
@@ -2006,11 +2014,12 @@ function setLanguage(lang) {
 // STATE
 // =============================================================================
 var state = {
-  drivers:       APP_DATA.drivers       || [],
-  helpers:       APP_DATA.helpers       || [],
-  vehicles:      APP_DATA.vehicles      || [],
-  destinations:  APP_DATA.destinations  || [],
-  customers:     APP_DATA.customers     || [],
+  drivers:        APP_DATA.drivers        || [],
+  helpers:        APP_DATA.helpers        || [],
+  vehicles:       APP_DATA.vehicles       || [],
+  destinations:   APP_DATA.destinations   || [],
+  customers:      APP_DATA.customers      || [],
+  helperCompanies: APP_DATA.helperCompanies || [],
   activeDrivers: [],
   stage1Drivers: [],   // drivers who completed Stage 1 today
   stage3Drivers: [],   // drivers who completed Stage 3 (eligible for Stage 4)
@@ -2090,6 +2099,16 @@ function toggleHelperMode(mode) {
     document.getElementById('sos1-helper-name').value = '';
     document.getElementById('sos1-helper-company').value = '';
     document.getElementById('sos1-helper-list').classList.add('hidden');
+    // Populate supplier company dropdown if not already done
+    var sel = document.getElementById('sos1-helper-company-manual');
+    if (sel && sel.options.length <= 1) {
+      (state.helperCompanies || []).forEach(function(co) {
+        var opt = document.createElement('option');
+        opt.value = co;
+        opt.textContent = co;
+        sel.appendChild(opt);
+      });
+    }
   }
 }
 
@@ -2361,11 +2380,13 @@ function onEos4DriverSelect(driver) {
 // STAGE 1 & 2 PENDING DRIVERS (server call for cross-device support)
 // =============================================================================
 function loadStage1PendingDrivers() {
-  // Merge session-known drivers with server data
+  var loadingEl = document.getElementById('sos2-loading-drivers');
+  var searchEl  = document.getElementById('sos2-driver-search');
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
+
   callServer('getStage1PendingDrivers', [],
     function(result) {
-      // Normalise: server returns {rowId, driverId, driverName, ...}
-      // Autocomplete expects {id, name, rowId, ...}
       state.stage1Drivers = (result || []).map(function(d) {
         return {
           rowId:         d.rowId,
@@ -2377,24 +2398,33 @@ function loadStage1PendingDrivers() {
           arrivalTime:   d.arrivalTime
         };
       });
+      if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
       console.warn('Could not load stage 1 drivers:', err);
+      if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
+      showToast('Could not load drivers. Tap Refresh to try again.', 'error');
     }
   );
 }
 
 function loadActiveDrivers() {
   var loadingEl = document.getElementById('eos3-loading-drivers');
+  var searchEl  = document.getElementById('eos3-driver-search');
   if (loadingEl) loadingEl.classList.remove('hidden');
+  if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
 
   callServer('getActiveDriversForEndShift', [],
     function(result) {
       state.activeDrivers = result || [];
       if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
       if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
       showToast('Could not load active drivers: ' + err, 'error');
     }
   );
@@ -2402,15 +2432,19 @@ function loadActiveDrivers() {
 
 function loadStage3Drivers() {
   var loadingEl = document.getElementById('eos4-loading-drivers');
+  var searchEl  = document.getElementById('eos4-driver-search');
   if (loadingEl) loadingEl.classList.remove('hidden');
+  if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
 
   callServer('getStage3PendingDrivers', [],
     function(result) {
       state.stage3Drivers = result || [];
       if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
       if (loadingEl) loadingEl.classList.add('hidden');
+      if (searchEl)  searchEl.disabled = false;
       showToast('Could not load drivers: ' + err, 'error');
     }
   );

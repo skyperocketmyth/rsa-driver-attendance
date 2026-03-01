@@ -224,14 +224,16 @@ function getInitialData() {
   // Read up to column V (22 cols) to capture destination (col S=19) and customer (col V=22)
   var values = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
 
-  var drivers      = [];
-  var helpers      = [];
-  var vehicles     = [];
-  var destinations = [];
-  var customers    = [];
+  var drivers         = [];
+  var helpers         = [];
+  var vehicles        = [];
+  var destinations    = [];
+  var customers       = [];
+  var helperCompanies = [];
   var vehicleSet   = {};
   var destSet      = {};
   var custSet      = {};
+  var helperCoSet  = {};
 
   values.forEach(function(row) {
     var driverId   = String(row[0]).trim();
@@ -242,6 +244,7 @@ function getInitialData() {
     var vehicle    = String(row[9]).trim();
     var dest       = String(row[18]).trim();  // Column S (0-indexed: 18)
     var customer   = String(row[21]).trim();  // Column V (0-indexed: 21)
+    var supplierCo = String(row[16]).trim();  // Column Q (0-indexed: 16) — Supplier companies
 
     if (driverId && driverName) {
       drivers.push({ id: driverId, name: driverName });
@@ -261,10 +264,15 @@ function getInitialData() {
       custSet[customer] = true;
       customers.push({ name: customer });
     }
+    if (supplierCo && !helperCoSet[supplierCo]) {
+      helperCoSet[supplierCo] = true;
+      helperCompanies.push(supplierCo);
+    }
   });
 
   return { drivers: drivers, helpers: helpers, vehicles: vehicles,
-           destinations: destinations, customers: customers };
+           destinations: destinations, customers: customers,
+           helperCompanies: helperCompanies.sort() };
 }
 
 // =============================================================================
@@ -295,6 +303,33 @@ function formatDubai_(date) {
 
 function formatDateOnly_(date) {
   return Utilities.formatDate(date, TIMEZONE, 'dd/MM/yyyy');
+}
+
+// Parses a datetime-local input ('YYYY-MM-DDTHH:MM') into a Date in Dubai timezone.
+// Use this when storing date/time to sheets so Sheets handles locale correctly.
+function parseDatetimeLocal_(dtLocal) {
+  if (!dtLocal) return null;
+  try {
+    var p = dtLocal.split('T');
+    var d = p[0].split('-');
+    var t = (p[1] || '00:00').split(':');
+    var s = d[2] + '/' + d[1] + '/' + d[0] + ' ' + t[0] + ':' + t[1] + ':00';
+    return Utilities.parseDate(s, TIMEZONE, 'dd/MM/yyyy HH:mm:ss');
+  } catch(e) { return null; }
+}
+
+// Safely reads a sheet cell that may be a Date object or a legacy string → 'DD/MM/YYYY'.
+function cellToDateStr_(val) {
+  if (!val) return '';
+  if (val instanceof Date) return formatDateOnly_(val);
+  return String(val).trim();
+}
+
+// Safely reads a sheet cell that may be a Date object or a legacy string → 'DD/MM/YYYY HH:MM:SS'.
+function cellToDatetimeStr_(val) {
+  if (!val) return '';
+  if (val instanceof Date) return formatDubai_(val);
+  return String(val).trim();
 }
 
 function generateRowId_(driverId) {
@@ -357,8 +392,10 @@ function saveShiftStart(data) {
     if (!data.shiftStartTime) {
       return { success: false, error: 'Shift start time is required.' };
     }
-    var arrivalStr = formatDatetimeLocalInput_(data.shiftStartTime);
-    var shiftDate  = arrivalStr.split(' ')[0];  // Extract 'DD/MM/YYYY' from 'DD/MM/YYYY HH:MM'
+    var arrivalDate = parseDatetimeLocal_(data.shiftStartTime);
+    if (!arrivalDate) {
+      return { success: false, error: 'Invalid shift start time.' };
+    }
 
     // Guard: check if this driver has ANY incomplete shift (any date)
     var lastRow = sheet.getLastRow();
@@ -367,15 +404,15 @@ function saveShiftStart(data) {
       for (var i = 0; i < allData.length; i++) {
         var r              = allData[i];
         var existingDriver = String(r[COL.DRIVER_ID - 1]).trim();
-        var existingEnd    = String(r[COL.END_TIME - 1]).trim();
+        var existingEnd    = cellToDatetimeStr_(r[COL.END_TIME - 1]);
         if (existingDriver !== data.driverId) continue;
         if (existingEnd) continue;  // shift fully completed, skip
 
         // Driver has an incomplete shift — determine which stage they're stuck on
-        var existingDate      = String(r[COL.SHIFT_DATE - 1]).trim();
-        var existingArrival   = String(r[COL.ARRIVAL - 1]).trim();
-        var existingDeparture = String(r[COL.DEPARTURE - 1]).trim();
-        var existingLastDrop  = String(r[COL.LAST_DROP_SUBMIT - 1]).trim();
+        var existingDate      = cellToDateStr_(r[COL.SHIFT_DATE - 1]);
+        var existingArrival   = cellToDatetimeStr_(r[COL.ARRIVAL - 1]);
+        var existingDeparture = cellToDatetimeStr_(r[COL.DEPARTURE - 1]);
+        var existingLastDrop  = cellToDatetimeStr_(r[COL.LAST_DROP_SUBMIT - 1]);
 
         var stuckStage, stageLabel;
         if (existingArrival && !existingDeparture && !existingLastDrop) {
@@ -404,7 +441,7 @@ function saveShiftStart(data) {
     // Build 25-element row (A–Y)
     var row = new Array(25).fill('');
     row[COL.ROW_ID - 1]           = rowId;
-    row[COL.SHIFT_DATE - 1]       = shiftDate;
+    row[COL.SHIFT_DATE - 1]       = arrivalDate;  // Store Date object — avoids Sheets locale ambiguity
     row[COL.DRIVER_ID - 1]        = data.driverId;
     row[COL.DRIVER_NAME - 1]      = data.driverName;
     row[COL.HELPER_ID - 1]        = data.helperId || '';
@@ -417,11 +454,11 @@ function saveShiftStart(data) {
     row[COL.DESTINATION - 1]      = data.destinationEmirate || '';
     row[COL.PRIMARY_CUSTOMER - 1] = data.primaryCustomer || '';
     row[COL.TOTAL_DROPS - 1]      = Number(data.totalDrops) || 0;
-    row[COL.ARRIVAL - 1]          = arrivalStr;
+    row[COL.ARRIVAL - 1]          = arrivalDate;  // Store Date object
 
     sheet.appendRow(row);
 
-    return { success: true, rowId: rowId, arrivalTime: arrivalStr };
+    return { success: true, rowId: rowId, arrivalTime: formatDubai_(arrivalDate) };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -437,19 +474,17 @@ function getStage1PendingDrivers() {
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return [];
 
-    var now       = new Date();
-    var today     = formatDateOnly_(now);
-    var yesterday = formatDateOnly_(new Date(now.getTime() - 86400000));
     var values = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
     var result = [];
 
     values.forEach(function(row) {
-      var shiftDate = String(row[COL.SHIFT_DATE - 1]).trim();
-      var arrival   = String(row[COL.ARRIVAL - 1]).trim();
-      var departure = String(row[COL.DEPARTURE - 1]).trim();
+      var arrival   = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
+      var departure = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
+      var endTime   = cellToDatetimeStr_(row[COL.END_TIME - 1]);
 
-      // Show pending departures from today and yesterday (covers overnight / early shifts)
-      if ((shiftDate === today || shiftDate === yesterday) && arrival && !departure) {
+      // Any driver with an arrival but no departure and no completed shift
+      // (no date filter needed — saveShiftStart prevents duplicate active shifts)
+      if (arrival && !departure && !endTime) {
         result.push({
           rowId:         String(row[COL.ROW_ID - 1]).trim(),
           driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
@@ -479,10 +514,13 @@ function saveDeparture(rowId, departureTimeStr) {
       return { success: false, error: 'Shift record not found. Please check with your supervisor.' };
     }
 
-    var departureStr = formatDatetimeLocalInput_(departureTimeStr);
-    sheet.getRange(rowNum, COL.DEPARTURE).setValue(departureStr);
+    var departureDate = parseDatetimeLocal_(departureTimeStr);
+    if (!departureDate) {
+      return { success: false, error: 'Invalid departure time.' };
+    }
+    sheet.getRange(rowNum, COL.DEPARTURE).setValue(departureDate);
 
-    return { success: true, departureTime: departureStr };
+    return { success: true, departureTime: formatDubai_(departureDate) };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -504,12 +542,13 @@ function getActiveDriversForEndShift() {
     var result = [];
 
     values.forEach(function(row) {
-      var arrival      = String(row[COL.ARRIVAL - 1]).trim();
-      var departure    = String(row[COL.DEPARTURE - 1]).trim();
-      var lastDropSub  = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
+      var arrival      = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
+      var departure    = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
+      var lastDropSub  = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
+      var endTime      = cellToDatetimeStr_(row[COL.END_TIME - 1]);
 
-      // Stage 3 candidates: arrival done, last-drop not yet submitted
-      if (arrival && !lastDropSub) {
+      // Stage 3 candidates: arrival done, last-drop not yet submitted, shift not complete
+      if (arrival && !lastDropSub && !endTime) {
         result.push({
           rowId:         String(row[COL.ROW_ID - 1]).trim(),
           driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
@@ -539,11 +578,14 @@ function saveLastDrop(data) {
       return { success: false, error: 'Last drop date & time is required.' };
     }
 
-    var photoUrl          = saveOdometerPhoto_(data.lastDropPhotoBase64, data.rowId + '_lastdrop.jpg');
-    var lastDropFormatted = formatDatetimeLocalInput_(data.lastDropTime);
-    var submitTime        = formatDubai_(new Date());  // auto-captured server timestamp
+    var photoUrl     = saveOdometerPhoto_(data.lastDropPhotoBase64, data.rowId + '_lastdrop.jpg');
+    var lastDropDate = parseDatetimeLocal_(data.lastDropTime);
+    if (!lastDropDate) {
+      return { success: false, error: 'Invalid last drop time.' };
+    }
+    var submitTime = formatDubai_(new Date());  // auto-captured server timestamp
 
-    sheet.getRange(rowNum, COL.LAST_DROP).setValue(lastDropFormatted);
+    sheet.getRange(rowNum, COL.LAST_DROP).setValue(lastDropDate);
     sheet.getRange(rowNum, COL.LAST_DROP_PHOTO).setValue(photoUrl);
     sheet.getRange(rowNum, COL.LAST_DROP_SUBMIT).setValue(submitTime);
     sheet.getRange(rowNum, COL.FAILED_DROPS).setValue(Number(data.failedDrops) || 0);
@@ -569,8 +611,8 @@ function getStage3PendingDrivers() {
     var result = [];
 
     values.forEach(function(row) {
-      var lastDropSub = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
-      var endTime     = String(row[COL.END_TIME - 1]).trim();
+      var lastDropSub = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
+      var endTime     = cellToDatetimeStr_(row[COL.END_TIME - 1]);
 
       if (lastDropSub && !endTime) {
         result.push({
@@ -603,18 +645,20 @@ function saveShiftEnd(data) {
     if (!data.shiftCompleteTime) {
       return { success: false, error: 'Shift complete time is required.' };
     }
-    var endTimeStr = formatDatetimeLocalInput_(data.shiftCompleteTime);
+    var endDate = parseDatetimeLocal_(data.shiftCompleteTime);
+    if (!endDate) {
+      return { success: false, error: 'Invalid shift complete time.' };
+    }
 
     // Auto-fill departure if Stage 2 was skipped (use shift complete time as fallback)
-    var existingDeparture = String(sheet.getRange(rowNum, COL.DEPARTURE).getValue()).trim();
+    var existingDeparture = cellToDatetimeStr_(sheet.getRange(rowNum, COL.DEPARTURE).getValue());
     if (!existingDeparture) {
-      sheet.getRange(rowNum, COL.DEPARTURE).setValue(endTimeStr);
+      sheet.getRange(rowNum, COL.DEPARTURE).setValue(endDate);
     }
 
     // Compute shift duration from arrival time to manually entered end time
-    var arrivalStr  = String(sheet.getRange(rowNum, COL.ARRIVAL).getValue()).trim();
-    var arrivalDate = parseDubaiDate_(arrivalStr);
-    var endDate     = parseDubaiDate_(endTimeStr);
+    var arrivalVal  = sheet.getRange(rowNum, COL.ARRIVAL).getValue();
+    var arrivalDate = (arrivalVal instanceof Date) ? arrivalVal : parseDubaiDate_(String(arrivalVal).trim());
 
     var shiftDuration = 0;
     var overtime      = 0;
@@ -624,7 +668,7 @@ function saveShiftEnd(data) {
     }
 
     // Write Stage 4 fields: END_TIME, END_ODO, END_PHOTO, SHIFT_DURATION, OVERTIME
-    sheet.getRange(rowNum, COL.END_TIME).setValue(endTimeStr);
+    sheet.getRange(rowNum, COL.END_TIME).setValue(endDate);
     sheet.getRange(rowNum, COL.END_ODO).setValue(Number(data.endOdometer));
     sheet.getRange(rowNum, COL.END_PHOTO).setValue(photoUrl);
     sheet.getRange(rowNum, COL.SHIFT_DURATION).setValue(shiftDuration);
@@ -664,14 +708,14 @@ function getDashboardData() {
 
     values.forEach(function(row) {
       var rowId        = String(row[COL.ROW_ID - 1]).trim();
-      var shiftDate    = String(row[COL.SHIFT_DATE - 1]).trim();
+      var shiftDate    = cellToDateStr_(row[COL.SHIFT_DATE - 1]);
       var driverId     = String(row[COL.DRIVER_ID - 1]).trim();
       var driverName   = String(row[COL.DRIVER_NAME - 1]).trim();
       var vehicle      = String(row[COL.VEHICLE - 1]).trim();
-      var arrivalStr   = String(row[COL.ARRIVAL - 1]).trim();
-      var departure    = String(row[COL.DEPARTURE - 1]).trim();
-      var lastDropSub  = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
-      var endTime      = String(row[COL.END_TIME - 1]).trim();
+      var arrivalStr   = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
+      var departure    = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
+      var lastDropSub  = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
+      var endTime      = cellToDatetimeStr_(row[COL.END_TIME - 1]);
       var shiftDur     = Number(row[COL.SHIFT_DURATION - 1]) || 0;
       var overtime     = Number(row[COL.OVERTIME - 1]) || 0;
       var failedDrops  = Number(row[COL.FAILED_DROPS - 1]) || 0;
@@ -889,15 +933,15 @@ function getDashboardDetailData(dateStr) {
     var stageTimings = [];
 
     values.forEach(function(row) {
-      var shiftDate = String(row[COL.SHIFT_DATE - 1]).trim();
+      var shiftDate = cellToDateStr_(row[COL.SHIFT_DATE - 1]);
       if (shiftDate !== dateStr) return;
 
       var driverName  = String(row[COL.DRIVER_NAME - 1]).trim();
       var vehicle     = String(row[COL.VEHICLE - 1]).trim();
-      var arrivalStr  = String(row[COL.ARRIVAL - 1]).trim();
-      var departure   = String(row[COL.DEPARTURE - 1]).trim();
-      var lastDropSub = String(row[COL.LAST_DROP_SUBMIT - 1]).trim();
-      var endTime     = String(row[COL.END_TIME - 1]).trim();
+      var arrivalStr  = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
+      var departure   = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
+      var lastDropSub = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
+      var endTime     = cellToDatetimeStr_(row[COL.END_TIME - 1]);
       var startOdo    = Number(row[COL.START_ODO - 1]) || 0;
       var endOdo      = Number(row[COL.END_ODO - 1])   || 0;
 
@@ -995,8 +1039,8 @@ function getVehicleHoursForRange(fromDate, toDate) {
     var vehicleHoursMap = {};
 
     values.forEach(function(row) {
-      var shiftDate  = String(row[COL.SHIFT_DATE - 1]).trim();
-      var endTime    = String(row[COL.END_TIME - 1]).trim();
+      var shiftDate  = cellToDateStr_(row[COL.SHIFT_DATE - 1]);
+      var endTime    = cellToDatetimeStr_(row[COL.END_TIME - 1]);
       var shiftDur   = Number(row[COL.SHIFT_DURATION - 1]) || 0;
       var vehicle    = String(row[COL.VEHICLE - 1]).trim();
 
