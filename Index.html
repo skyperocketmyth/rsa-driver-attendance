@@ -1007,7 +1007,7 @@
 
       <!-- Helper -->
       <div class="card">
-        <p class="section-title"><span data-i18n="helperDetails">Helper Details</span> <span class="required">*</span></p>
+        <p class="section-title"><span data-i18n="helperDetails">Helper Details</span> <span class="optional" style="font-size:12px;color:#888;font-weight:400;">(optional)</span></p>
         <!-- Mode toggle -->
         <div class="mode-toggle">
           <button class="mode-toggle-btn active" id="helper-mode-search" type="button"
@@ -1052,7 +1052,7 @@
         <!-- Manual Entry panel -->
         <div id="helper-panel-manual" class="hidden">
           <div class="field-group">
-            <label><span data-i18n="supplierCompany">Supplier Company</span> <span class="required">*</span></label>
+            <label><span data-i18n="supplierCompany">Supplier Company</span></label>
             <select id="sos1-helper-company-manual" style="width:100%;padding:12px;font-size:15px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:#212121;">
               <option value="" disabled selected data-i18n="supplierCompanyPh">Select supplier company</option>
             </select>
@@ -2615,11 +2615,9 @@ function submitStage1() {
     helperId   = val('sos1-helper-id');
     helperName = val('sos1-helper-name');
     helperCo   = val('sos1-helper-company');
-    if (!helperId || !helperName) { showToast('Please select a helper from the list.', 'error'); return; }
   } else {
     helperCo   = val('sos1-helper-company-manual');
     helperName = val('sos1-helper-name-manual');  // optional
-    if (!helperCo) { showToast('Please enter the supplier / company name for the helper.', 'error'); return; }
   }
 
   var destination = val('sos1-destination');
