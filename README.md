@@ -84,7 +84,4 @@ clasp push          # Push code to Apps Script
 clasp deploy        # Create a new deployment version
 ```
 
----
 
-## Spreadsheet
-`https://docs.google.com/spreadsheets/d/14JFtpxmJt5mEMSnaCBJk7zDGp24HpR7TnSQn2LynA4o`
