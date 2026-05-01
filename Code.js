@@ -9,7 +9,7 @@
 //   5. Dashboard URL:  /exec?view=dashboard
 // =============================================================================
 
-const SPREADSHEET_ID   = '14JFtpxmJt5mEMSnaCBJk7zDGp24HpR7TnSQn2LynA4o';
+const SPREADSHEET_ID   = '1BqAfMFb8qb4iiDb23_-Jb1LIJDZbpT7exu7uOj3kId0';
 const DROPDOWN_SHEET   = 'Dropdown List';
 const ATTENDANCE_SHEET = 'Attendance Data';
 const DRIVE_FOLDER_ID  = '105-FYZkG7mBsBOP7t3AGvL8zLWyn-WqS'; // <-- Replace before deploy
@@ -209,7 +209,7 @@ function buildPwaManifest_() {
 // =============================================================================
 
 function getInitialData() {
-  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(DROPDOWN_SHEET);
 
   if (!sheet) {
@@ -280,7 +280,7 @@ function getInitialData() {
 // =============================================================================
 
 function getOrCreateAttendanceSheet_() {
-  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(ATTENDANCE_SHEET);
 
   if (!sheet) {
