@@ -405,14 +405,16 @@ function logError_(where, err) {
   } catch(ignore) {}
 }
 
-// A shift is considered complete if ANY of END_TIME / END_ODO / END_PHOTO is filled.
-// All three are only ever written together by Stage 4, so any of them present means
-// the driver completed their shift — even if a partial-write left the sheet inconsistent.
-// Pass the END_TIME / END_ODO / END_PHOTO cell values directly (already-read row values).
-function isShiftComplete_(endTimeCell, endOdoCell, endPhotoCell) {
+// A shift is considered complete if ANY of END_TIME / END_ODO / END_PHOTO /
+// SHIFT_DURATION is filled. All four are only ever written together by Stage 4,
+// so any of them present means the driver completed their shift — even if a
+// partial-write left the sheet inconsistent.
+// Pass the four Stage 4 cell values directly (already-read row values).
+function isShiftComplete_(endTimeCell, endOdoCell, endPhotoCell, shiftDurationCell) {
   if (cellToDatetimeStr_(endTimeCell) !== '') return true;
   if ((Number(endOdoCell) || 0) > 0) return true;
   if (String(endPhotoCell || '').trim() !== '') return true;
+  if ((Number(shiftDurationCell) || 0) > 0) return true;
   return false;
 }
 
@@ -791,7 +793,8 @@ function getDashboardData() {
       // Tolerant "complete" check — any Stage 4 field present means shift is done.
       // Protects against partial-write artefacts from the old (pre-lock) save bug.
       var shiftComplete = isShiftComplete_(
-        row[COL.END_TIME - 1], row[COL.END_ODO - 1], row[COL.END_PHOTO - 1]
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1],
+        row[COL.END_PHOTO - 1], row[COL.SHIFT_DURATION - 1]
       );
 
       if (!driverId) return;
@@ -1017,7 +1020,8 @@ function getDashboardDetailData(dateStr) {
       var startOdo    = Number(row[COL.START_ODO - 1]) || 0;
       var endOdo      = Number(row[COL.END_ODO - 1])   || 0;
       var shiftComplete = isShiftComplete_(
-        row[COL.END_TIME - 1], row[COL.END_ODO - 1], row[COL.END_PHOTO - 1]
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1],
+        row[COL.END_PHOTO - 1], row[COL.SHIFT_DURATION - 1]
       );
 
       // Vehicle km: completed shifts with valid odometer readings
@@ -1195,18 +1199,22 @@ function auditShiftConsistency() {
   return issues;
 }
 
-// repairBackfillShiftDuration() — for rows that have END_TIME but missing
-// SHIFT_DURATION/OVERTIME (legacy partial writes), recomputes from ARRIVAL.
-// Does NOT invent missing END_TIME — that requires manual entry. Read the
-// audit log first, then run this to fix only the safe cases.
-function repairBackfillShiftDuration() {
+// repairPartialShifts() — fixes two common inconsistencies safely:
+//   (1) ARRIVAL + END_TIME present, SHIFT_DURATION/OVERTIME missing → recompute.
+//   (2) ARRIVAL + SHIFT_DURATION present, END_TIME missing → reconstruct
+//       END_TIME = ARRIVAL + SHIFT_DURATION hours. Audit revealed a batch of
+//       2026-05-13 rows in this state.
+// Both branches are safe — they only fill blanks, never overwrite existing values.
+// Read auditShiftConsistency() output first to know what will be touched.
+function repairPartialShifts() {
   return withSheetLock_(function() {
     var sheet   = getOrCreateAttendanceSheet_();
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) { Logger.log('No data rows.'); return; }
 
-    var values  = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
-    var fixed   = 0;
+    var values     = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+    var fixedDur   = 0;
+    var fixedEnd   = 0;
 
     values.forEach(function(row, idx) {
       var sheetRow   = idx + 2;
@@ -1214,23 +1222,42 @@ function repairBackfillShiftDuration() {
       var endVal     = row[COL.END_TIME - 1];
       var existDur   = Number(row[COL.SHIFT_DURATION - 1]) || 0;
 
-      if (!arrivalVal || !endVal || existDur > 0) return;
-
+      if (!arrivalVal) return;
       var arrivalDate = (arrivalVal instanceof Date) ? arrivalVal : parseDubaiDate_(String(arrivalVal).trim());
-      var endDate     = (endVal     instanceof Date) ? endVal     : parseDubaiDate_(String(endVal).trim());
-      if (!arrivalDate || !endDate) return;
+      if (!arrivalDate) return;
 
-      var dur = Math.round(((endDate - arrivalDate) / 3600000) * 100) / 100;
-      var ot  = Math.round(Math.max(0, dur - OVERTIME_HOURS) * 100) / 100;
+      var endStr  = cellToDatetimeStr_(endVal);
+      var endDate = endStr ? ((endVal instanceof Date) ? endVal : parseDubaiDate_(endStr)) : null;
 
-      sheet.getRange(sheetRow, COL.SHIFT_DURATION).setValue(dur);
-      sheet.getRange(sheetRow, COL.OVERTIME).setValue(ot);
-      fixed++;
-      Logger.log('Repaired row ' + sheetRow + ': duration=' + dur + ' overtime=' + ot);
+      // Branch 1: have arrival + endTime, missing duration → compute.
+      if (endDate && existDur <= 0) {
+        var dur = Math.round(((endDate - arrivalDate) / 3600000) * 100) / 100;
+        var ot  = Math.round(Math.max(0, dur - OVERTIME_HOURS) * 100) / 100;
+        sheet.getRange(sheetRow, COL.SHIFT_DURATION).setValue(dur);
+        sheet.getRange(sheetRow, COL.OVERTIME).setValue(ot);
+        fixedDur++;
+        Logger.log('Row ' + sheetRow + ': backfilled SHIFT_DURATION=' + dur + ' OVERTIME=' + ot);
+        return;
+      }
+
+      // Branch 2: have arrival + duration, missing endTime → reconstruct endTime.
+      if (!endDate && existDur > 0) {
+        var reconstructed = new Date(arrivalDate.getTime() + existDur * 3600000);
+        sheet.getRange(sheetRow, COL.END_TIME).setValue(reconstructed);
+        // Also fill OVERTIME if it's blank
+        var existOt = Number(row[COL.OVERTIME - 1]) || 0;
+        if (existOt <= 0) {
+          var ot2 = Math.round(Math.max(0, existDur - OVERTIME_HOURS) * 100) / 100;
+          sheet.getRange(sheetRow, COL.OVERTIME).setValue(ot2);
+        }
+        fixedEnd++;
+        Logger.log('Row ' + sheetRow + ': reconstructed END_TIME=' + formatDubai_(reconstructed) + ' (from duration ' + existDur + 'h)');
+        return;
+      }
     });
 
     SpreadsheetApp.flush();
-    Logger.log('repairBackfillShiftDuration: fixed ' + fixed + ' row(s).');
-    return { fixed: fixed };
+    Logger.log('repairPartialShifts: backfilled duration on ' + fixedDur + ' row(s), reconstructed end_time on ' + fixedEnd + ' row(s).');
+    return { fixedDuration: fixedDur, fixedEndTime: fixedEnd };
   });
 }
