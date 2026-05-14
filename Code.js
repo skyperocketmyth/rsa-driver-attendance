@@ -390,7 +390,9 @@ function findRowByRowId_(sheet, rowId) {
 // can't interleave reads/writes against the same sheet.
 function withSheetLock_(fn) {
   var lock = LockService.getScriptLock();
-  lock.tryLock(20000);  // wait up to 20s
+  if (!lock.tryLock(20000)) {
+    throw new Error('The system is busy with another submission. Please try again in a moment.');
+  }
   try {
     return fn();
   } finally {
@@ -564,7 +566,8 @@ function getStage1PendingDrivers() {
 
     return result.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); });
   } catch (err) {
-    return [];
+    logError_('getStage1PendingDrivers', err);
+    throw err;
   }
 }
 
@@ -634,7 +637,8 @@ function getActiveDriversForEndShift() {
 
     return result.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); });
   } catch (err) {
-    return [];
+    logError_('getActiveDriversForEndShift', err);
+    throw err;
   }
 }
 
@@ -706,7 +710,8 @@ function getStage3PendingDrivers() {
 
     return result.sort(function(a, b) { return a.driverName.localeCompare(b.driverName); });
   } catch (err) {
-    return [];
+    logError_('getStage3PendingDrivers', err);
+    throw err;
   }
 }
 

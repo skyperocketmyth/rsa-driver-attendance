@@ -2129,11 +2129,19 @@ function navigate(screen) {
   } else if (screen === 'sos-stage2') {
     document.getElementById('screen-sos-stage2').classList.remove('hidden');
     stopCamera('start');
-    // Reset Stage 2 fields so user starts fresh
-    document.getElementById('sos2-driver-search').value = '';
-    document.getElementById('sos2-confirm-details').classList.add('hidden');
+    // Extract just-completed driver BEFORE resetting state
+    var autoSelectDriver = state._justCompletedStage1 || null;
+    state._justCompletedStage1 = null;
     state.currentRowId = null;
-    loadStage1PendingDrivers();
+    document.getElementById('sos2-confirm-details').classList.add('hidden');
+    // Auto-select the driver who just completed Stage 1 on this device
+    if (autoSelectDriver) {
+      document.getElementById('sos2-driver-search').value = autoSelectDriver.name + ' (' + autoSelectDriver.id + ')';
+      onStage2DriverSelect(autoSelectDriver);
+    } else {
+      document.getElementById('sos2-driver-search').value = '';
+    }
+    loadStage1PendingDrivers(autoSelectDriver);
   } else if (screen === 'eos-stage3') {
     document.getElementById('screen-eos-stage3').classList.remove('hidden');
     document.getElementById('eos3-form').classList.add('hidden');
@@ -2379,15 +2387,23 @@ function onEos4DriverSelect(driver) {
 // =============================================================================
 // STAGE 1 & 2 PENDING DRIVERS (server call for cross-device support)
 // =============================================================================
-function loadStage1PendingDrivers() {
+function loadStage1PendingDrivers(preserveDriver) {
+  // preserveDriver: a driver object to keep in the list even if the server
+  // returns empty (handles GAS stale-read after a just-completed Stage 1).
+  // Falls back to the currently selected driver so manual Refresh is also safe.
+  if (!preserveDriver && state.currentRowId) {
+    preserveDriver = state.stage1Drivers.find(function(d) { return d.rowId === state.currentRowId; }) || null;
+  }
+
   var loadingEl = document.getElementById('sos2-loading-drivers');
   var searchEl  = document.getElementById('sos2-driver-search');
   if (loadingEl) loadingEl.classList.remove('hidden');
-  if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
+  // Don't wipe the search field if we just auto-selected a driver
+  if (!preserveDriver && searchEl) { searchEl.disabled = true; searchEl.value = ''; }
 
   callServer('getStage1PendingDrivers', [],
     function(result) {
-      state.stage1Drivers = (result || []).map(function(d) {
+      var mapped = (result || []).map(function(d) {
         return {
           rowId:         d.rowId,
           id:            d.driverId,
@@ -2398,14 +2414,24 @@ function loadStage1PendingDrivers() {
           arrivalTime:   d.arrivalTime
         };
       });
+      // If we know a driver belongs in the list (just completed Stage 1 or currently
+      // selected), ensure they're not lost due to GAS stale-read or a race.
+      if (preserveDriver && !mapped.some(function(d) { return d.rowId === preserveDriver.rowId; })) {
+        mapped.unshift(preserveDriver);
+      }
+      state.stage1Drivers = mapped;
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
       console.warn('Could not load stage 1 drivers:', err);
+      // On error, ensure the preserved driver remains in the list
+      if (preserveDriver && !state.stage1Drivers.some(function(d) { return d.rowId === preserveDriver.rowId; })) {
+        state.stage1Drivers.unshift(preserveDriver);
+      }
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
-      showToast('Could not load drivers. Tap Refresh to try again.', 'error');
+      showToast('Could not load drivers list. Tap Refresh to try again.', 'error');
     }
   );
 }
@@ -2416,16 +2442,24 @@ function loadActiveDrivers() {
   if (loadingEl) loadingEl.classList.remove('hidden');
   if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
 
+  // Preserve any currently selected driver so a refresh doesn't wipe them
+  var selected = state.selectedEos3Driver;
+
   callServer('getActiveDriversForEndShift', [],
     function(result) {
-      state.activeDrivers = result || [];
+      var mapped = result || [];
+      if (selected && !mapped.some(function(d) { return d.rowId === selected.rowId; })) {
+        mapped = [selected].concat(mapped);
+      }
+      state.activeDrivers = mapped;
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
+      // On error, keep existing list so the driver can still be found
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
-      showToast('Could not load active drivers: ' + err, 'error');
+      showToast('Could not load drivers list. Tap Refresh to try again.', 'error');
     }
   );
 }
@@ -2436,16 +2470,22 @@ function loadStage3Drivers() {
   if (loadingEl) loadingEl.classList.remove('hidden');
   if (searchEl)  { searchEl.disabled = true; searchEl.value = ''; }
 
+  var selected = state.selectedEos4Driver;
+
   callServer('getStage3PendingDrivers', [],
     function(result) {
-      state.stage3Drivers = result || [];
+      var mapped = result || [];
+      if (selected && !mapped.some(function(d) { return d.rowId === selected.rowId; })) {
+        mapped = [selected].concat(mapped);
+      }
+      state.stage3Drivers = mapped;
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
     },
     function(err) {
       if (loadingEl) loadingEl.classList.add('hidden');
       if (searchEl)  searchEl.disabled = false;
-      showToast('Could not load drivers: ' + err, 'error');
+      showToast('Could not load drivers list. Tap Refresh to try again.', 'error');
     }
   );
 }
@@ -2656,12 +2696,13 @@ function submitStage1() {
     enableBtn('btn-sos1-submit');
     if (result && result.success) {
       state.currentRowId = result.rowId;
-      // Also push to stage1Drivers for immediate Stage 2 use
-      state.stage1Drivers.push({
+      var completedDriver = {
         rowId: result.rowId, id: driverId, name: driverName,
         vehicleNumber: vehicleNum, helperName: helperName,
         helperCompany: helperCo, arrivalTime: result.arrivalTime
-      });
+      };
+      state.stage1Drivers.push(completedDriver);
+      state._justCompletedStage1 = completedDriver;
       navigate('sos-stage2');
     } else {
       var msg = (result && result.error) || 'Failed to save. Please try again.';
