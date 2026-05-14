@@ -2,11 +2,12 @@
 // DRIVER ATTENDANCE WEB APP — Google Apps Script Backend
 // =============================================================================
 // SETUP (one-time):
-//   1. Create a Google Drive folder for odometer photos
-//   2. Copy the folder ID from its URL and paste it into DRIVE_FOLDER_ID below
-//   3. Deploy as web app: Execute as "Me", Who has access "Anyone"
-//   4. Driver app URL: /exec
-//   5. Dashboard URL:  /exec?view=dashboard
+//   1. In GAS Project Settings > Script Properties, add:
+//      CLOUDINARY_CLOUD_NAME    = your Cloudinary cloud name
+//      CLOUDINARY_UPLOAD_PRESET = your unsigned upload preset name
+//   2. Deploy as web app: Execute as "Me", Who has access "Anyone"
+//   3. Driver app URL: /exec
+//   4. Dashboard URL:  /exec?view=dashboard
 // =============================================================================
 
 const SPREADSHEET_ID   = '1BqAfMFb8qb4iiDb23_-Jb1LIJDZbpT7exu7uOj3kId0';
@@ -145,7 +146,7 @@ function getOrCreateIconUrl_() {
     var svgBlob = Utilities.newBlob(buildIconSvg_(), 'image/svg+xml', 'rsa-app-icon.svg');
     var folder  = DriveApp.getFolderById(DRIVE_FOLDER_ID);
     var file    = folder.createFile(svgBlob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
     // thumbnail endpoint: Drive rasterises the SVG to a JPEG served from
     // Google's CDN — reliable MIME type, no auth required for public files.
     var url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w512';
@@ -209,7 +210,7 @@ function buildPwaManifest_() {
 // =============================================================================
 
 function getInitialData() {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName(DROPDOWN_SHEET);
 
   if (!sheet) {
@@ -280,7 +281,7 @@ function getInitialData() {
 // =============================================================================
 
 function getOrCreateAttendanceSheet_() {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName(ATTENDANCE_SHEET);
 
   if (!sheet) {
@@ -298,11 +299,11 @@ function getOrCreateAttendanceSheet_() {
 }
 
 function formatDubai_(date) {
-  return Utilities.formatDate(date, TIMEZONE, 'dd/MM/yyyy HH:mm:ss');
+  return Utilities.formatDate(date, TIMEZONE, 'dd-MM-yyyy HH:mm');
 }
 
 function formatDateOnly_(date) {
-  return Utilities.formatDate(date, TIMEZONE, 'dd/MM/yyyy');
+  return Utilities.formatDate(date, TIMEZONE, 'dd-MM-yyyy');
 }
 
 // Parses a datetime-local input ('YYYY-MM-DDTHH:MM') into a Date in Dubai timezone.
@@ -338,21 +339,37 @@ function generateRowId_(driverId) {
 }
 
 function saveOdometerPhoto_(base64Data, filename) {
-  var cleaned = base64Data.replace(/^data:image\/\w+;base64,/, '');
-  var bytes   = Utilities.base64Decode(cleaned);
-  var blob    = Utilities.newBlob(bytes, 'image/jpeg', filename);
-  var folder  = DriveApp.getFolderById(DRIVE_FOLDER_ID);
-  var file    = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+  var props     = PropertiesService.getScriptProperties();
+  var cloudName = props.getProperty('CLOUDINARY_CLOUD_NAME');
+  var preset    = props.getProperty('CLOUDINARY_UPLOAD_PRESET');
+  if (!cloudName || !preset) {
+    throw new Error('Cloudinary credentials missing in Script Properties.');
+  }
+  var dataUri  = base64Data.indexOf('data:') === 0
+    ? base64Data
+    : 'data:image/jpeg;base64,' + base64Data;
+  var response = UrlFetchApp.fetch(
+    'https://api.cloudinary.com/v1_1/' + cloudName + '/image/upload',
+    {
+      method:             'post',
+      contentType:        'application/json',
+      payload:            JSON.stringify({ file: dataUri, upload_preset: preset, folder: 'rsa-driver-app' }),
+      muteHttpExceptions: true
+    }
+  );
+  var body = JSON.parse(response.getContentText());
+  if (response.getResponseCode() !== 200) {
+    throw new Error('Cloudinary upload failed: ' + (body.error ? body.error.message : response.getContentText()));
+  }
+  return body.secure_url;
 }
 
 function parseDubaiDate_(str) {
-  // Input: 'DD/MM/YYYY HH:MM:SS'
+  // Input: 'DD/MM/YYYY HH:MM:SS' or 'DD-MM-YYYY HH:MM:SS'
   if (!str) return null;
   var parts = str.split(' ');
   if (parts.length < 2) return null;
-  var d = parts[0].split('/');
+  var d = parts[0].split(/[\/\-]/);
   var t = parts[1].split(':');
   if (d.length < 3 || t.length < 2) return null;
   return new Date(
@@ -362,9 +379,30 @@ function parseDubaiDate_(str) {
 }
 
 function findRowByRowId_(sheet, rowId) {
-  var finder = sheet.createTextFinder(rowId).findNext();
+  // matchEntireCell(true) prevents prefix collisions (e.g. rowId ending in "-13"
+  // matching a cell containing "-132"). Without it, writes can land on the wrong row.
+  var finder = sheet.createTextFinder(rowId).matchEntireCell(true).findNext();
   if (!finder || finder.getColumn() !== 1) return null;
   return finder.getRow();
+}
+
+// Wraps a write operation in a script lock so concurrent driver submissions
+// can't interleave reads/writes against the same sheet.
+function withSheetLock_(fn) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(20000);  // wait up to 20s
+  try {
+    return fn();
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
+  }
+}
+
+function logError_(where, err) {
+  try {
+    Logger.log('ERROR in ' + where + ': ' + (err && err.message ? err.message : err) +
+               ' | stack: ' + (err && err.stack ? err.stack : 'n/a'));
+  } catch(ignore) {}
 }
 
 function formatDatetimeLocalInput_(dtLocal) {
@@ -385,6 +423,7 @@ function formatDatetimeLocalInput_(dtLocal) {
 // =============================================================================
 
 function saveShiftStart(data) {
+  return withSheetLock_(function() {
   try {
     var sheet = getOrCreateAttendanceSheet_();
 
@@ -441,7 +480,7 @@ function saveShiftStart(data) {
     // Build 25-element row (A–Y)
     var row = new Array(25).fill('');
     row[COL.ROW_ID - 1]           = rowId;
-    row[COL.SHIFT_DATE - 1]       = arrivalDate;  // Store Date object — avoids Sheets locale ambiguity
+    row[COL.SHIFT_DATE - 1]       = Utilities.formatDate(arrivalDate, TIMEZONE, 'dd-MM-yyyy');
     row[COL.DRIVER_ID - 1]        = data.driverId;
     row[COL.DRIVER_NAME - 1]      = data.driverName;
     row[COL.HELPER_ID - 1]        = data.helperId || '';
@@ -457,11 +496,14 @@ function saveShiftStart(data) {
     row[COL.ARRIVAL - 1]          = arrivalDate;  // Store Date object
 
     sheet.appendRow(row);
+    SpreadsheetApp.flush();  // ensure row is committed before returning
 
     return { success: true, rowId: rowId, arrivalTime: formatDubai_(arrivalDate) };
   } catch (err) {
+    logError_('saveShiftStart', err);
     return { success: false, error: err.message };
   }
+  });
 }
 
 // =============================================================================
@@ -504,6 +546,7 @@ function getStage1PendingDrivers() {
 }
 
 function saveDeparture(rowId, departureTimeStr) {
+  return withSheetLock_(function() {
   try {
     if (!departureTimeStr) {
       return { success: false, error: 'Departure time is required.' };
@@ -519,11 +562,14 @@ function saveDeparture(rowId, departureTimeStr) {
       return { success: false, error: 'Invalid departure time.' };
     }
     sheet.getRange(rowNum, COL.DEPARTURE).setValue(departureDate);
+    SpreadsheetApp.flush();
 
     return { success: true, departureTime: formatDubai_(departureDate) };
   } catch (err) {
+    logError_('saveDeparture', err);
     return { success: false, error: err.message };
   }
+  });
 }
 
 // =============================================================================
@@ -567,6 +613,7 @@ function getActiveDriversForEndShift() {
 }
 
 function saveLastDrop(data) {
+  return withSheetLock_(function() {
   try {
     var sheet  = getOrCreateAttendanceSheet_();
     var rowNum = findRowByRowId_(sheet, data.rowId);
@@ -578,22 +625,26 @@ function saveLastDrop(data) {
       return { success: false, error: 'Last drop date & time is required.' };
     }
 
-    var photoUrl     = saveOdometerPhoto_(data.lastDropPhotoBase64, data.rowId + '_lastdrop.jpg');
     var lastDropDate = parseDatetimeLocal_(data.lastDropTime);
     if (!lastDropDate) {
       return { success: false, error: 'Invalid last drop time.' };
     }
-    var submitTime = formatDubai_(new Date());  // auto-captured server timestamp
+
+    var photoUrl   = saveOdometerPhoto_(data.lastDropPhotoBase64, data.rowId + '_lastdrop.jpg');
+    var submitDate = new Date();  // auto-captured server timestamp (Date, not string — matches other date columns)
 
     sheet.getRange(rowNum, COL.LAST_DROP).setValue(lastDropDate);
     sheet.getRange(rowNum, COL.LAST_DROP_PHOTO).setValue(photoUrl);
-    sheet.getRange(rowNum, COL.LAST_DROP_SUBMIT).setValue(submitTime);
+    sheet.getRange(rowNum, COL.LAST_DROP_SUBMIT).setValue(submitDate);
     sheet.getRange(rowNum, COL.FAILED_DROPS).setValue(Number(data.failedDrops) || 0);
+    SpreadsheetApp.flush();
 
-    return { success: true, submitTime: submitTime };
+    return { success: true, submitTime: formatDubai_(submitDate) };
   } catch (err) {
+    logError_('saveLastDrop', err);
     return { success: false, error: err.message };
   }
+  });
 }
 
 // =============================================================================
@@ -631,6 +682,7 @@ function getStage3PendingDrivers() {
 }
 
 function saveShiftEnd(data) {
+  return withSheetLock_(function() {
   try {
     var sheet  = getOrCreateAttendanceSheet_();
     var rowNum = findRowByRowId_(sheet, data.rowId);
@@ -673,11 +725,14 @@ function saveShiftEnd(data) {
     sheet.getRange(rowNum, COL.END_PHOTO).setValue(photoUrl);
     sheet.getRange(rowNum, COL.SHIFT_DURATION).setValue(shiftDuration);
     sheet.getRange(rowNum, COL.OVERTIME).setValue(overtime);
+    SpreadsheetApp.flush();
 
     return { success: true, shiftDuration: shiftDuration, overtime: overtime };
   } catch (err) {
+    logError_('saveShiftEnd', err);
     return { success: false, error: err.message };
   }
+  });
 }
 
 // =============================================================================

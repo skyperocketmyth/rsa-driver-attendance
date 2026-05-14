@@ -3185,7 +3185,7 @@ function getDubaiNDaysAgoString(n) {
 function isoToDubai(isoStr) {
   if (!isoStr) return '';
   var p = isoStr.split('-');
-  return p[2] + '/' + p[1] + '/' + p[0];
+  return p[2] + '-' + p[1] + '-' + p[0];
 }
 
 function loadDetailData(isoDateStr) {
