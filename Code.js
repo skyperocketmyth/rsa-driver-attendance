@@ -405,6 +405,17 @@ function logError_(where, err) {
   } catch(ignore) {}
 }
 
+// A shift is considered complete if ANY of END_TIME / END_ODO / END_PHOTO is filled.
+// All three are only ever written together by Stage 4, so any of them present means
+// the driver completed their shift — even if a partial-write left the sheet inconsistent.
+// Pass the END_TIME / END_ODO / END_PHOTO cell values directly (already-read row values).
+function isShiftComplete_(endTimeCell, endOdoCell, endPhotoCell) {
+  if (cellToDatetimeStr_(endTimeCell) !== '') return true;
+  if ((Number(endOdoCell) || 0) > 0) return true;
+  if (String(endPhotoCell || '').trim() !== '') return true;
+  return false;
+}
+
 function formatDatetimeLocalInput_(dtLocal) {
   // Input from datetime-local: 'YYYY-MM-DDTHH:MM'
   if (!dtLocal) return '';
@@ -777,10 +788,16 @@ function getDashboardData() {
       var totalDrops   = Number(row[COL.TOTAL_DROPS - 1]) || 0;
       var helperCo     = String(row[COL.HELPER_COMPANY - 1]).trim();
 
+      // Tolerant "complete" check — any Stage 4 field present means shift is done.
+      // Protects against partial-write artefacts from the old (pre-lock) save bug.
+      var shiftComplete = isShiftComplete_(
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1], row[COL.END_PHOTO - 1]
+      );
+
       if (!driverId) return;
 
-      // Active drivers: any incomplete shift (arrival present, no end time)
-      if (arrivalStr && !endTime) {
+      // Active drivers: any incomplete shift (arrival present, Stage 4 not done)
+      if (arrivalStr && !shiftComplete) {
         // Determine current stage
         var currentStage;
         if (!departure) {
@@ -810,7 +827,7 @@ function getDashboardData() {
       }
 
       // Punch-out misses: any incomplete shift NOT from today
-      if (arrivalStr && !endTime && shiftDate !== today) {
+      if (arrivalStr && !shiftComplete && shiftDate !== today) {
         var missStage;
         if (!departure) {
           missStage = 2;
@@ -999,6 +1016,9 @@ function getDashboardDetailData(dateStr) {
       var endTime     = cellToDatetimeStr_(row[COL.END_TIME - 1]);
       var startOdo    = Number(row[COL.START_ODO - 1]) || 0;
       var endOdo      = Number(row[COL.END_ODO - 1])   || 0;
+      var shiftComplete = isShiftComplete_(
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1], row[COL.END_PHOTO - 1]
+      );
 
       // Vehicle km: completed shifts with valid odometer readings
       if (endTime && endOdo > 0 && startOdo > 0 && vehicle) {
@@ -1048,7 +1068,7 @@ function getDashboardDetailData(dateStr) {
           gap12Auto:     gap12Auto,
           gap23:         gap23,
           gap34:         gap34,
-          isComplete:    endTime !== ''
+          isComplete:    shiftComplete
         });
       }
     });
@@ -1114,4 +1134,103 @@ function getVehicleHoursForRange(fromDate, toDate) {
   } catch (err) {
     return { error: err.message };
   }
+}
+
+// =============================================================================
+// MAINTENANCE — run manually from GAS editor
+// =============================================================================
+
+// auditShiftConsistency() — lists rows where Stage 4 looks partially complete.
+// Run from the GAS editor and check the Execution log to see which rows the
+// dashboard considers "still pending" and why. Read-only: makes no edits.
+function auditShiftConsistency() {
+  var sheet   = getOrCreateAttendanceSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) { Logger.log('No data rows.'); return; }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+  var issues = [];
+
+  values.forEach(function(row, idx) {
+    var sheetRow    = idx + 2;
+    var rowId       = String(row[COL.ROW_ID - 1]).trim();
+    var driver      = String(row[COL.DRIVER_NAME - 1]).trim();
+    var shiftDate   = cellToDateStr_(row[COL.SHIFT_DATE - 1]);
+    var arrivalStr  = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
+    var endTimeStr  = cellToDatetimeStr_(row[COL.END_TIME - 1]);
+    var endOdo      = Number(row[COL.END_ODO - 1]) || 0;
+    var endPhoto    = String(row[COL.END_PHOTO - 1] || '').trim();
+    var shiftDur    = Number(row[COL.SHIFT_DURATION - 1]) || 0;
+
+    if (!arrivalStr) return;  // pre-Stage 1, ignore
+
+    var stage4Signals = [
+      endTimeStr !== '' ? 'END_TIME' : null,
+      endOdo > 0 ? 'END_ODO' : null,
+      endPhoto !== '' ? 'END_PHOTO' : null,
+      shiftDur > 0 ? 'SHIFT_DURATION' : null
+    ].filter(Boolean);
+
+    // Inconsistent: some but not all Stage 4 signals present
+    if (stage4Signals.length > 0 && stage4Signals.length < 4) {
+      issues.push({
+        sheetRow:  sheetRow,
+        rowId:     rowId,
+        driver:    driver,
+        date:      shiftDate,
+        present:   stage4Signals.join(','),
+        missing:   ['END_TIME','END_ODO','END_PHOTO','SHIFT_DURATION']
+                     .filter(function(k){ return stage4Signals.indexOf(k) === -1; })
+                     .join(',')
+      });
+    }
+  });
+
+  Logger.log('Audit found ' + issues.length + ' inconsistent row(s).');
+  issues.forEach(function(i) {
+    Logger.log('Row ' + i.sheetRow + ' | ' + i.date + ' | ' + i.driver +
+               ' | rowId=' + i.rowId +
+               ' | present=[' + i.present + '] | missing=[' + i.missing + ']');
+  });
+  return issues;
+}
+
+// repairBackfillShiftDuration() — for rows that have END_TIME but missing
+// SHIFT_DURATION/OVERTIME (legacy partial writes), recomputes from ARRIVAL.
+// Does NOT invent missing END_TIME — that requires manual entry. Read the
+// audit log first, then run this to fix only the safe cases.
+function repairBackfillShiftDuration() {
+  return withSheetLock_(function() {
+    var sheet   = getOrCreateAttendanceSheet_();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) { Logger.log('No data rows.'); return; }
+
+    var values  = sheet.getRange(2, 1, lastRow - 1, COL.OVERTIME).getValues();
+    var fixed   = 0;
+
+    values.forEach(function(row, idx) {
+      var sheetRow   = idx + 2;
+      var arrivalVal = row[COL.ARRIVAL - 1];
+      var endVal     = row[COL.END_TIME - 1];
+      var existDur   = Number(row[COL.SHIFT_DURATION - 1]) || 0;
+
+      if (!arrivalVal || !endVal || existDur > 0) return;
+
+      var arrivalDate = (arrivalVal instanceof Date) ? arrivalVal : parseDubaiDate_(String(arrivalVal).trim());
+      var endDate     = (endVal     instanceof Date) ? endVal     : parseDubaiDate_(String(endVal).trim());
+      if (!arrivalDate || !endDate) return;
+
+      var dur = Math.round(((endDate - arrivalDate) / 3600000) * 100) / 100;
+      var ot  = Math.round(Math.max(0, dur - OVERTIME_HOURS) * 100) / 100;
+
+      sheet.getRange(sheetRow, COL.SHIFT_DURATION).setValue(dur);
+      sheet.getRange(sheetRow, COL.OVERTIME).setValue(ot);
+      fixed++;
+      Logger.log('Repaired row ' + sheetRow + ': duration=' + dur + ' overtime=' + ot);
+    });
+
+    SpreadsheetApp.flush();
+    Logger.log('repairBackfillShiftDuration: fixed ' + fixed + ' row(s).');
+    return { fixed: fixed };
+  });
 }
