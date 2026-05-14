@@ -456,9 +456,16 @@ function saveShiftStart(data) {
       for (var i = 0; i < allData.length; i++) {
         var r              = allData[i];
         var existingDriver = String(r[COL.DRIVER_ID - 1]).trim();
-        var existingEnd    = cellToDatetimeStr_(r[COL.END_TIME - 1]);
         if (existingDriver !== data.driverId) continue;
-        if (existingEnd) continue;  // shift fully completed, skip
+
+        // Tolerant complete check — same logic the dashboard uses. A shift counts
+        // as completed if ANY Stage 4 field is filled, so a partial-write row
+        // (e.g. END_TIME blank but END_ODO + END_PHOTO + SHIFT_DURATION present)
+        // does not falsely block the next day's start.
+        if (isShiftComplete_(
+          r[COL.END_TIME - 1], r[COL.END_ODO - 1],
+          r[COL.END_PHOTO - 1], r[COL.SHIFT_DURATION - 1]
+        )) continue;
 
         // Driver has an incomplete shift — determine which stage they're stuck on
         var existingDate      = cellToDateStr_(r[COL.SHIFT_DATE - 1]);
@@ -535,11 +542,14 @@ function getStage1PendingDrivers() {
     values.forEach(function(row) {
       var arrival   = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
       var departure = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
-      var endTime   = cellToDatetimeStr_(row[COL.END_TIME - 1]);
+      var complete  = isShiftComplete_(
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1],
+        row[COL.END_PHOTO - 1], row[COL.SHIFT_DURATION - 1]
+      );
 
       // Any driver with an arrival but no departure and no completed shift
       // (no date filter needed — saveShiftStart prevents duplicate active shifts)
-      if (arrival && !departure && !endTime) {
+      if (arrival && !departure && !complete) {
         result.push({
           rowId:         String(row[COL.ROW_ID - 1]).trim(),
           driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
@@ -604,10 +614,13 @@ function getActiveDriversForEndShift() {
       var arrival      = cellToDatetimeStr_(row[COL.ARRIVAL - 1]);
       var departure    = cellToDatetimeStr_(row[COL.DEPARTURE - 1]);
       var lastDropSub  = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
-      var endTime      = cellToDatetimeStr_(row[COL.END_TIME - 1]);
+      var complete     = isShiftComplete_(
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1],
+        row[COL.END_PHOTO - 1], row[COL.SHIFT_DURATION - 1]
+      );
 
       // Stage 3 candidates: arrival done, last-drop not yet submitted, shift not complete
-      if (arrival && !lastDropSub && !endTime) {
+      if (arrival && !lastDropSub && !complete) {
         result.push({
           rowId:         String(row[COL.ROW_ID - 1]).trim(),
           driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
@@ -676,9 +689,12 @@ function getStage3PendingDrivers() {
 
     values.forEach(function(row) {
       var lastDropSub = cellToDatetimeStr_(row[COL.LAST_DROP_SUBMIT - 1]);
-      var endTime     = cellToDatetimeStr_(row[COL.END_TIME - 1]);
+      var complete    = isShiftComplete_(
+        row[COL.END_TIME - 1], row[COL.END_ODO - 1],
+        row[COL.END_PHOTO - 1], row[COL.SHIFT_DURATION - 1]
+      );
 
-      if (lastDropSub && !endTime) {
+      if (lastDropSub && !complete) {
         result.push({
           rowId:         String(row[COL.ROW_ID - 1]).trim(),
           driverId:      String(row[COL.DRIVER_ID - 1]).trim(),
