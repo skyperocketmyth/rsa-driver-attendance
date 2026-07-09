@@ -21,19 +21,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; background: #0D47A1; }
 
-    /* Full-screen iframe — the GAS app fills the whole viewport */
-    #app-frame {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-      opacity: 0;
-      transition: opacity 0.4s ease;
-    }
-    #app-frame.visible { opacity: 1; }
-
-    /* Splash screen shown while GAS app loads */
+    /* Splash screen shown while redirecting to the GAS app */
     #splash {
       position: fixed;
       inset: 0;
@@ -90,7 +78,7 @@
 </head>
 <body>
 
-  <!-- Splash shown while iframe loads -->
+  <!-- Splash shown briefly while redirecting to the GAS app -->
   <div id="splash">
     <img src="icon.svg" alt="RSA Transport">
     <div class="brand">RSA Transport</div>
@@ -102,37 +90,11 @@
     </div>
   </div>
 
-  <!--
-    Full-screen iframe that hosts the Google Apps Script web app.
-    allow="camera" is required so drivers can take odometer photos.
-    *** REPLACE the src URL with your GAS deployment URL ***
-  -->
-  <iframe
-    id="app-frame"
-    src="https://script.google.com/macros/s/AKfycbypbc4t0Br5jPseyktUQxHK2DnokX5yFzbvtBz6t-lrVqbgBpwc-CdVbh-RStUHGXoc/exec"
-    allow="camera; microphone"
-    allowfullscreen
-    frameborder="0"
-    title="RSA Driver App">
-  </iframe>
-
   <script>
-    var frame = document.getElementById('app-frame');
-    var splash = document.getElementById('splash');
-
-    function hideSplash() {
-      frame.classList.add('visible');
-      splash.classList.add('fade-out');
-      setTimeout(function() {
-        if (splash.parentNode) splash.parentNode.removeChild(splash);
-      }, 600);
-    }
-
-    // Hide splash when the GAS app finishes loading
-    frame.addEventListener('load', hideSplash);
-
-    // Fallback: hide splash after 10 s regardless (slow network, etc.)
-    setTimeout(hideSplash, 10000);
+    // Google no longer allows script.google.com to be shown inside an
+    // iframe (it returns X-Frame-Options: sameorigin), so we navigate the
+    // whole tab to the app instead of embedding it in a frame.
+    window.location.replace('https://script.google.com/macros/s/AKfycbypbc4t0Br5jPseyktUQxHK2DnokX5yFzbvtBz6t-lrVqbgBpwc-CdVbh-RStUHGXoc/exec');
 
     // Register the GitHub Pages service worker.
     // This is what Chrome uses to verify PWA installability.

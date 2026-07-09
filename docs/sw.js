@@ -2,7 +2,7 @@
 // Caches the GitHub Pages shell so the install prompt works offline.
 // The actual GAS app content is always fetched live (never cached).
 
-var CACHE = 'rsa-attend-v4';
+var CACHE = 'rsa-attend-v5';
 var SHELL = [
   '/rsa-driver-attendance/',
   '/rsa-driver-attendance/index.html',
